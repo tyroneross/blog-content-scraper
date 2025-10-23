@@ -30,7 +30,7 @@ export class ContentExtractor {
       }
 
       // Calculate reading time (200 words per minute)
-      const wordCount = article.textContent.split(/\s+/).length;
+      const wordCount = article.textContent?.split(/\s+/).length || 0;
       const readingTime = Math.ceil(wordCount / 200);
 
       // Extract publish time from metadata
