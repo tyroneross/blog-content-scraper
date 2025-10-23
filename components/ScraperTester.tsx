@@ -41,11 +41,17 @@ export function ScraperTester({
       return;
     }
 
+    // Auto-add https:// if protocol is missing
+    let normalizedUrl = url.trim();
+    if (!normalizedUrl.match(/^https?:\/\//i)) {
+      normalizedUrl = `https://${normalizedUrl}`;
+    }
+
     // Validate URL format
     try {
-      new URL(url);
+      new URL(normalizedUrl);
     } catch {
-      setError('Please enter a valid URL (must include http:// or https://)');
+      setError('Please enter a valid URL (e.g., example.com or https://example.com)');
       return;
     }
 
@@ -54,7 +60,7 @@ export function ScraperTester({
     setResult(null);
 
     if (onTestStart) {
-      onTestStart(url);
+      onTestStart(normalizedUrl);
     }
 
     try {
@@ -71,7 +77,7 @@ export function ScraperTester({
           ...(perplexityApiKey ? { 'X-Perplexity-API-Key': perplexityApiKey } : {}),
         },
         body: JSON.stringify({
-          url,
+          url: normalizedUrl,
           sourceType: 'auto',
           maxArticles: 10,
           extractFullContent,
@@ -131,7 +137,7 @@ export function ScraperTester({
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && !loading && handleTest()}
-                placeholder="https://example.com/news"
+                placeholder="example.com/news"
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 disabled={loading}
               />
@@ -154,7 +160,7 @@ export function ScraperTester({
               </button>
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              Enter any news website or blog URL to test the scraper
+              Enter any website URL (https:// is optional)
             </p>
           </div>
 
