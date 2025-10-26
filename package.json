@@ -10,7 +10,8 @@
     "lint": "next lint",
     "pre-deploy": "./scripts/pre-deploy.sh",
     "typecheck": "tsc --noEmit",
-    "test:f1": "tsx tests/run-f1-tests.ts"
+    "test:f1": "tsx tests/run-f1-tests.ts",
+    "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.5.0",
