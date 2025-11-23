@@ -6,6 +6,12 @@ import { convertToMarkdown } from '@/lib/formatters/html-to-markdown';
 import { cleanText, stripHTML } from '@/lib/formatters/text-cleaner';
 import { z } from 'zod';
 
+// Enable proxy support for fetch requests
+import { bootstrap } from 'global-agent';
+if (process.env.HTTP_PROXY || process.env.HTTPS_PROXY) {
+  bootstrap();
+}
+
 const ScraperTestRequestSchema = z.object({
   url: z.string().url('Invalid URL format'),
   sourceType: z.enum(['auto', 'rss', 'sitemap', 'html']).optional().default('auto'),
