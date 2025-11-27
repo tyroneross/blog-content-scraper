@@ -32,3 +32,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test datasets
+tests/dragnet_data/HTML/
+tests/dragnet_data/Corrected/
+tests/dragnet_data/.git/
