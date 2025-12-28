@@ -1,8 +1,11 @@
 {
-  "name": "scraper-app",
+  "name": "scraper-monorepo",
   "version": "1.0.0",
-  "description": "Standalone web scraper testing application",
+  "description": "Web scraper application and SDK monorepo",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,28 +19,29 @@
     "@tailwindcss/typography": "^0.5.19",
     "cheerio": "^1.1.2",
     "jsdom": "^24.0.0",
-    "lucide-react": "^0.400.0",
-    "next": "^15.0.0",
+    "lucide-react": "^0.469.0",
+    "next": "^16.1.1",
+    "playwright": "^1.57.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "rss-parser": "^3.13.0",
     "turndown": "^7.2.1",
-    "zod": "^3.22.0"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
-    "@types/node": "^20.0.0",
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
     "autoprefixer": "^10.4.0",
-    "eslint": "^8.0.0",
-    "eslint-config-next": "^15.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.1.0",
     "postcss": "^8.4.0",
-    "tailwindcss": "^3.4.0",
-    "typescript": "^5.0.0"
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"

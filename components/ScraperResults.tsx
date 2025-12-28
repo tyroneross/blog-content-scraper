@@ -177,7 +177,7 @@ export function ScraperResults({ result, loading, error, className = '' }: Scrap
 
           {extractionStats.filtered > 0 && (
             <p className="mt-2 text-xs text-gray-600">
-              🎯 Filtered out {extractionStats.filtered} low-quality pages (homepages, careers, about pages, etc.)
+              Filtered out {extractionStats.filtered} low-quality pages (homepages, careers, about pages, etc.)
             </p>
           )}
         </div>
@@ -221,9 +221,9 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
     'bg-amber-100 text-amber-700 border-amber-200';
 
   const qualityLabel =
-    qualityPercent >= 80 ? '⭐ High Quality' :
-    qualityPercent >= 60 ? '✓ Good Quality' :
-    '• Low Quality';
+    qualityPercent >= 80 ? 'High' :
+    qualityPercent >= 60 ? 'Good' :
+    'Low';
 
   return (
     <div className="border border-gray-100 rounded-lg hover:border-gray-300 transition-colors">
@@ -260,7 +260,7 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
               {article.qualityScore !== undefined && (
                 <span
                   className={`px-2 py-0.5 text-xs font-medium border rounded-full ${qualityColor}`}
-                  title={`Quality Score: ${qualityPercent}%\n\nBased on:\n• Content validation (40%)\n• Publication date (20%)\n• Author/byline (15%)\n• Schema.org metadata (15%)\n• Reading time (10%)`}
+                  title={`Quality Score: ${qualityPercent}%\n\nBased on:\n- Content validation (40%)\n- Publication date (20%)\n- Author/byline (15%)\n- Schema.org metadata (15%)\n- Reading time (10%)`}
                 >
                   {qualityLabel} {qualityPercent}%
                 </span>
@@ -306,7 +306,7 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
                 }`}
                 disabled={!article.fullContentMarkdown}
               >
-                📝 Markdown
+                Markdown
               </button>
               <button
                 onClick={() => setViewMode('html')}
@@ -317,7 +317,7 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
                 }`}
                 disabled={!article.fullContent}
               >
-                🔧 Raw HTML
+                Raw HTML
               </button>
               <button
                 onClick={() => setViewMode('text')}
@@ -328,7 +328,7 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
                 }`}
                 disabled={!article.fullContentText}
               >
-                📄 Plain Text
+                Plain Text
               </button>
             </div>
           )}

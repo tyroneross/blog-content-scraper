@@ -12,7 +12,7 @@ const ScraperTestRequestSchema = z.object({
   maxArticles: z.number().int().min(1).max(50).optional().default(10),
   extractFullContent: z.boolean().optional().default(true),
   denyPaths: z.array(z.string()).optional(),
-  qualityThreshold: z.number().min(0).max(1).optional().default(0.5),
+  qualityThreshold: z.number().min(0).max(1).optional().default(0.3),  // Lowered to allow sitemap-only results
 });
 
 export async function POST(request: NextRequest) {
@@ -42,9 +42,10 @@ export async function POST(request: NextRequest) {
     console.log(`🧪 [ScraperTest] Testing ${url} (type: ${sourceType})`);
 
     // Use Source Orchestrator to discover and extract articles
+    // Note: Don't pass allowPaths - let orchestrator infer from URL
     const result = await globalSourceOrchestrator.processSource(url, {
       sourceType,
-      allowPaths: [],
+      // allowPaths intentionally omitted - orchestrator will infer from URL path
       denyPaths: finalDenyPaths,
       detectOnly: false,
       circuitBreaker: circuitBreakers.scrapingTest,

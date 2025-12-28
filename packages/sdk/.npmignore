@@ -1,0 +1,18 @@
+# Source files
+src/
+tsconfig.json
+
+# Development files
+*.test.ts
+*.spec.ts
+__tests__/
+.vscode/
+.idea/
+
+# Build artifacts
+*.tsbuildinfo
+.turbo
+
+# Other
+.DS_Store
+node_modules/

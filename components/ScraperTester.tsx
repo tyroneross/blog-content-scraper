@@ -183,16 +183,16 @@ export function ScraperTester({
             }`}>
               {extractFullContent ? (
                 <>
-                  <span className="font-medium">✅ Production mode - Extract full content</span>
+                  <span className="font-medium">Production mode - Extract full content</span>
                   <span className="block text-xs text-blue-700 mt-0.5">
                     Matches production behavior (~20-60s for 10 articles). Best search quality.
                   </span>
                 </>
               ) : (
                 <>
-                  <span className="font-medium">⚡ Fast mode - Metadata only</span>
+                  <span className="font-medium">Fast mode - Metadata only</span>
                   <span className="block text-xs text-amber-700 mt-0.5">
-                    ⚠️ Quick URL validation (~5-10s). Production will extract full content.
+                    Quick URL validation (~5-10s). Production will extract full content.
                   </span>
                 </>
               )}
@@ -207,7 +207,7 @@ export function ScraperTester({
               disabled={loading}
             >
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">⚙️ Advanced Filtering</span>
+                <span className="text-sm font-medium text-gray-700">Advanced Filtering</span>
                 <span className="text-xs text-gray-500">(Optional)</span>
               </div>
               <svg
@@ -272,7 +272,7 @@ export function ScraperTester({
                 {/* Perplexity API Key */}
                 <div className="border-t border-gray-200 pt-4">
                   <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    🤖 Perplexity API Key (Optional LLM Fallback)
+                    Perplexity API Key (Optional LLM Fallback)
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -289,7 +289,7 @@ export function ScraperTester({
                       className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                       disabled={loading}
                     >
-                      {showApiKey ? '🙈 Hide' : '👁️ Show'}
+                      {showApiKey ? 'Hide' : 'Show'}
                     </button>
                   </div>
                   <div className="mt-2 space-y-1">
