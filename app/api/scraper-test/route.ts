@@ -15,8 +15,9 @@ if (process.env.HTTP_PROXY || process.env.HTTPS_PROXY) {
 const ScraperTestRequestSchema = z.object({
   url: z.string().url('Invalid URL format'),
   sourceType: z.enum(['auto', 'rss', 'sitemap', 'html']).optional().default('auto'),
-  maxArticles: z.number().int().min(1).max(50).optional().default(10),
+  maxArticles: z.number().int().min(1).max(50).optional().default(5),
   extractFullContent: z.boolean().optional().default(true),
+  allowPaths: z.array(z.string()).optional(),
   denyPaths: z.array(z.string()).optional(),
   qualityThreshold: z.number().min(0).max(1).optional().default(0.5),
 });
@@ -42,15 +43,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { url, sourceType, maxArticles, extractFullContent, denyPaths, qualityThreshold } = validation.data;
+    const { url, sourceType, maxArticles, extractFullContent, allowPaths, denyPaths, qualityThreshold } = validation.data;
+    const finalAllowPaths = allowPaths && allowPaths.length > 0 ? allowPaths : [];
     const finalDenyPaths = denyPaths && denyPaths.length > 0 ? denyPaths : DEFAULT_DENY_PATHS;
 
     console.log(`🧪 [ScraperTest] Testing ${url} (type: ${sourceType})`);
+    if (finalAllowPaths.length > 0) {
+      console.log(`🧪 [ScraperTest] Allow patterns: ${finalAllowPaths.join(', ')}`);
+    }
 
     // Use Source Orchestrator to discover and extract articles
     const result = await globalSourceOrchestrator.processSource(url, {
       sourceType,
-      allowPaths: [],
+      allowPaths: finalAllowPaths,
       denyPaths: finalDenyPaths,
       detectOnly: false,
       circuitBreaker: circuitBreakers.scrapingTest,

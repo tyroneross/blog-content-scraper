@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ScraperTestProps, ScraperTestResult } from '@/lib/types';
+import { ScraperTestProps, ScraperTestResult, ProgressState } from '@/lib/types';
 import { ScraperResults } from './ScraperResults';
 import { TestTube, Sparkles } from 'lucide-react';
 
@@ -28,12 +28,12 @@ export function ScraperTester({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScraperTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<ProgressState | null>(null);
   const [extractFullContent, setExtractFullContent] = useState(true); // Default to true (production mode)
   const [showAdvanced, setShowAdvanced] = useState(false); // Advanced filtering controls
   const [qualityThreshold, setQualityThreshold] = useState(0.6); // Default 60%
+  const [customAllowPaths, setCustomAllowPaths] = useState(''); // Optional custom allow patterns
   const [customDenyPaths, setCustomDenyPaths] = useState(''); // Optional custom deny patterns
-  const [perplexityApiKey, setPerplexityApiKey] = useState(''); // Optional Perplexity API key
-  const [showApiKey, setShowApiKey] = useState(false); // Show/hide API key
 
   const handleTest = async () => {
     if (!url.trim()) {
@@ -58,44 +58,91 @@ export function ScraperTester({
     setLoading(true);
     setError(null);
     setResult(null);
+    setProgress(null);
 
     if (onTestStart) {
       onTestStart(normalizedUrl);
     }
 
     try {
-      // Parse custom deny paths (one per line, filter empty lines)
+      // Parse custom paths (one per line, filter empty lines)
+      const allowPaths = customAllowPaths
+        .split('\n')
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
       const denyPaths = customDenyPaths
         .split('\n')
         .map(p => p.trim())
         .filter(p => p.length > 0);
 
-      const response = await fetch('/api/scraper-test', {
+      // Use streaming endpoint for real-time progress
+      const response = await fetch('/api/scraper-test/stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(perplexityApiKey ? { 'X-Perplexity-API-Key': perplexityApiKey } : {}),
         },
         body: JSON.stringify({
           url: normalizedUrl,
           sourceType: 'auto',
-          maxArticles: 10,
+          maxArticles: 5, // Reduced for faster testing
           extractFullContent,
           qualityThreshold,
-          denyPaths: denyPaths.length > 0 ? denyPaths : undefined, // Only send if custom paths provided
+          allowPaths: allowPaths.length > 0 ? allowPaths : undefined,
+          denyPaths: denyPaths.length > 0 ? denyPaths : undefined,
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data: ScraperTestResult = await response.json();
-      setResult(data);
+      // Read the SSE stream
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      if (onTestComplete) {
-        onTestComplete(data);
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events from buffer
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // Keep incomplete event in buffer
+
+        for (const eventData of lines) {
+          if (eventData.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(eventData.slice(6));
+
+              if (event.type === 'progress') {
+                setProgress({
+                  stage: event.stage,
+                  message: event.message,
+                  percent: event.percent,
+                  details: event.details,
+                });
+              } else if (event.type === 'result') {
+                setResult(event.data);
+                if (onTestComplete) {
+                  onTestComplete(event.data);
+                }
+              } else if (event.type === 'error') {
+                throw new Error(event.message);
+              }
+            } catch (parseError) {
+              // Ignore JSON parse errors for incomplete events
+              if (parseError instanceof SyntaxError) continue;
+              throw parseError;
+            }
+          }
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -106,6 +153,7 @@ export function ScraperTester({
       }
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -185,7 +233,7 @@ export function ScraperTester({
                 <>
                   <span className="font-medium">✅ Production mode - Extract full content</span>
                   <span className="block text-xs text-blue-700 mt-0.5">
-                    Matches production behavior (~20-60s for 10 articles). Best search quality.
+                    Fetches 5 most recent articles (~10-30s). Best search quality.
                   </span>
                 </>
               ) : (
@@ -251,63 +299,51 @@ export function ScraperTester({
                   </p>
                 </div>
 
+                {/* Default Patterns Info */}
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Current Default Deny Patterns:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {['/', '/about/*', '/careers/*', '/jobs/*', '/contact/*', '/team/*', '/privacy', '/terms', '/legal/*', '/tag/*', '/category/*', '/search', '/login', '/signup'].map(p => (
+                      <span key={p} className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded font-mono">{p}</span>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">These are blocked by default. Override below if needed.</p>
+                </div>
+
+                {/* Custom Allow Paths */}
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-2 block">
+                    ✅ Allow Patterns (Optional)
+                  </label>
+                  <textarea
+                    value={customAllowPaths}
+                    onChange={(e) => setCustomAllowPaths(e.target.value)}
+                    placeholder={`Only scrape URLs matching these patterns:\n/blog/*\n/news/*\n/articles/*`}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
+                    rows={3}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    One pattern per line. If set, only URLs matching these patterns will be scraped.
+                  </p>
+                </div>
+
                 {/* Custom Deny Paths */}
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    Custom Deny Patterns (Optional)
+                    🚫 Deny Patterns (Override Defaults)
                   </label>
                   <textarea
                     value={customDenyPaths}
                     onChange={(e) => setCustomDenyPaths(e.target.value)}
-                    placeholder={`Leave empty for defaults, or add custom patterns:\n/pricing\n/docs/*\n/api/*`}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
-                    rows={4}
+                    placeholder={`Leave empty to use defaults above, or specify custom patterns:\n/pricing\n/docs/*\n/api/*`}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
+                    rows={3}
                     disabled={loading}
                   />
                   <p className="text-xs text-gray-600 mt-1">
-                    One pattern per line. Defaults block: /, /about, /careers, /contact, /tag/*, etc.
+                    One pattern per line. If set, replaces the defaults above.
                   </p>
-                </div>
-
-                {/* Perplexity API Key */}
-                <div className="border-t border-gray-200 pt-4">
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    🤖 Perplexity API Key (Optional LLM Fallback)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type={showApiKey ? 'text' : 'password'}
-                      value={perplexityApiKey}
-                      onChange={(e) => setPerplexityApiKey(e.target.value)}
-                      placeholder="pplx-..."
-                      className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
-                      disabled={loading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="px-3 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      disabled={loading}
-                    >
-                      {showApiKey ? '🙈 Hide' : '👁️ Show'}
-                    </button>
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    <p className="text-xs text-gray-600">
-                      When sites have no RSS/sitemap, Perplexity can discover articles using AI search.
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Get your API key at{' '}
-                      <a
-                        href="https://www.perplexity.ai/settings/api"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline"
-                      >
-                        perplexity.ai/settings/api
-                      </a>
-                    </p>
-                  </div>
                 </div>
               </div>
             )}
@@ -333,7 +369,7 @@ export function ScraperTester({
       </div>
 
       {/* Results Section */}
-      <ScraperResults result={result} loading={loading} error={error} />
+      <ScraperResults result={result} loading={loading} error={error} progress={progress} />
     </div>
   );
 }

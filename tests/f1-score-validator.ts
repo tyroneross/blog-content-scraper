@@ -156,7 +156,7 @@ export class F1ScoreValidator {
       );
 
       // Check title match
-      const titleMatch = this.normalizeTitle(extracted.title) ===
+      const titleMatch = this.normalizeTitle(extracted.title ?? '') ===
                         this.normalizeTitle(article.groundTruth.title);
 
       return {
@@ -165,7 +165,7 @@ export class F1ScoreValidator {
         success: true,
         result,
         details: {
-          extractedTitle: extracted.title,
+          extractedTitle: extracted.title ?? undefined,
           expectedTitle: article.groundTruth.title,
           titleMatch,
           extractedWordCount: result.extractedWords,

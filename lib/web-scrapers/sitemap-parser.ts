@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import pLimit from 'p-limit';
 import { globalRateLimiter } from '../scraping-rate-limiter';
 import { globalRobotsChecker } from './robots-checker';
 
@@ -237,11 +238,11 @@ export class SitemapParser {
   }
 
   private async parseSitemapIndex(
-    xml: string, 
+    xml: string,
     options: any
   ): Promise<SitemapEntry[]> {
     console.log(`🗺️ [Sitemap] Parsing sitemap index`);
-    
+
     const $ = cheerio.load(xml, { xmlMode: true });
     const sitemaps: string[] = [];
     const allEntries: SitemapEntry[] = [];
@@ -257,25 +258,59 @@ export class SitemapParser {
 
     console.log(`🗺️ [Sitemap] Found ${sitemaps.length} sitemaps in index`);
 
-    // Parse each individual sitemap
-    const entriesPerSitemap = Math.floor((options.maxEntries || this.maxEntries) / sitemaps.length);
-    
-    for (const sitemapUrl of sitemaps.slice(0, 10)) { // Limit to 10 sitemaps to avoid timeouts
-      try {
-        const sitemapXml = await this.fetchSitemap(sitemapUrl);
-        if (sitemapXml) {
-          const entries = this.parseRegularSitemap(sitemapXml, {
-            ...options,
-            maxEntries: entriesPerSitemap
-          });
-          allEntries.push(...entries);
-        }
-      } catch (error) {
-        console.warn(`⚠️ [Sitemap] Error parsing sitemap ${sitemapUrl}:`, error);
-        continue;
+    // Prioritize US English sitemaps, then other English, then rest
+    const prioritizedSitemaps = sitemaps.sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+
+      // /en-us/ comes first
+      const aIsEnUs = aLower.includes('/en-us/') || aLower.includes('/en_us/');
+      const bIsEnUs = bLower.includes('/en-us/') || bLower.includes('/en_us/');
+      if (aIsEnUs && !bIsEnUs) return -1;
+      if (bIsEnUs && !aIsEnUs) return 1;
+
+      // Then other English locales
+      const aIsEnglish = /\/en[-_][a-z]{2}\//i.test(aLower);
+      const bIsEnglish = /\/en[-_][a-z]{2}\//i.test(bLower);
+      if (aIsEnglish && !bIsEnglish) return -1;
+      if (bIsEnglish && !aIsEnglish) return 1;
+
+      return 0;
+    });
+
+    // Parse each individual sitemap in PARALLEL (prioritize en-us, limit to 10)
+    const sitemapsToProcess = prioritizedSitemaps.slice(0, 10);
+    const entriesPerSitemap = Math.floor((options.maxEntries || this.maxEntries) / Math.min(sitemaps.length, 10));
+
+    // Parallel fetching with concurrency limit of 5
+    const limit = pLimit(5);
+    console.log(`🗺️ [Sitemap] Fetching ${sitemapsToProcess.length} sitemaps in parallel (concurrency: 5)`);
+
+    const results = await Promise.allSettled(
+      sitemapsToProcess.map(sitemapUrl =>
+        limit(async () => {
+          const sitemapXml = await this.fetchSitemap(sitemapUrl);
+          if (sitemapXml) {
+            return this.parseRegularSitemap(sitemapXml, {
+              ...options,
+              maxEntries: entriesPerSitemap
+            });
+          }
+          return [];
+        })
+      )
+    );
+
+    // Collect successful results
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        allEntries.push(...result.value);
+      } else {
+        console.warn(`⚠️ [Sitemap] Error parsing sitemap:`, result.reason);
       }
     }
 
+    console.log(`🗺️ [Sitemap] Parallel fetch complete: ${allEntries.length} entries from ${sitemapsToProcess.length} sitemaps`);
     return allEntries;
   }
 

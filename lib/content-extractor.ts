@@ -37,13 +37,13 @@ export class ContentExtractor {
       const publishedTime = this.extractPublishedTime(dom.window.document);
 
       return {
-        title: article.title,
-        byline: article.byline,
-        content: article.content,
-        textContent: article.textContent,
-        length: article.length,
-        excerpt: article.excerpt,
-        siteName: article.siteName,
+        title: article.title ?? undefined,
+        byline: article.byline ?? undefined,
+        content: article.content ?? undefined,
+        textContent: article.textContent ?? undefined,
+        length: article.length ?? undefined,
+        excerpt: article.excerpt ?? undefined,
+        siteName: article.siteName ?? undefined,
         publishedTime,
         readingTime,
       };

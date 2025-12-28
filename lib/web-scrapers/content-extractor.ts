@@ -1,6 +1,7 @@
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
 import * as cheerio from 'cheerio';
+import pLimit from 'p-limit';
 import { globalRateLimiter } from '../scraping-rate-limiter';
 import { globalRobotsChecker } from './robots-checker';
 
@@ -14,7 +15,7 @@ export interface ExtractedContent {
   publishedTime?: Date;
   siteName?: string;
   lang?: string;
-  
+
   // Structured data
   structured?: {
     jsonLd?: any;
@@ -27,7 +28,7 @@ export interface ExtractedContent {
   wordCount: number;
   readingTime: number; // in minutes
   confidence: number; // 0-1, how confident we are in the extraction
-  
+
   // Processing info
   extractionMethod: 'readability' | 'fallback' | 'structured';
   extractedAt: Date;
@@ -54,7 +55,7 @@ export class ContentExtractor {
         try {
           const urlObj = new URL(url);
           const hostname = urlObj.hostname;
-          
+
           // Check for private IP ranges
           const privateRanges = [
             /^127\./,                    // 127.0.0.0/8 (loopback)
@@ -67,13 +68,13 @@ export class ContentExtractor {
             /^fc00:/,                    // IPv6 unique local
             /^fd00:/                     // IPv6 unique local
           ];
-          
+
           return privateRanges.some(range => range.test(hostname));
         } catch {
           return true; // If we can't parse, block it
         }
       },
-      
+
       isLocalhost: (url: string): boolean => {
         try {
           const urlObj = new URL(url);
@@ -83,7 +84,7 @@ export class ContentExtractor {
           return true;
         }
       },
-      
+
       isAllowedProtocol: (url: string): boolean => {
         try {
           const urlObj = new URL(url);
@@ -100,13 +101,13 @@ export class ContentExtractor {
    */
   async extractContent(url: string): Promise<ExtractedContent | null> {
     console.log(`📖 [ContentExtractor] Starting content extraction from ${url}`);
-    
+
     try {
       // SSRF protection
       if (!this.ssrfProtection.isAllowedProtocol(url)) {
         throw new Error(`Disallowed protocol: ${url}`);
       }
-      
+
       if (this.ssrfProtection.isPrivateIP(url) || this.ssrfProtection.isLocalhost(url)) {
         throw new Error(`Private/local IP not allowed: ${url}`);
       }
@@ -125,7 +126,7 @@ export class ContentExtractor {
 
       // Extract content using multiple methods
       const extracted = await this.extractFromHTML(html, url);
-      
+
       if (!extracted) {
         console.warn(`⚠️ [ContentExtractor] No content extracted from ${url}`);
         return null;
@@ -147,23 +148,42 @@ export class ContentExtractor {
   }
 
   /**
-   * Extract content from multiple URLs
+   * Extract content from multiple URLs with configurable concurrency
    */
-  async extractBatch(urls: string[]): Promise<(ExtractedContent | null)[]> {
-    console.log(`📖 [ContentExtractor] Starting batch extraction of ${urls.length} URLs`);
-    
-    const results: Promise<ExtractedContent | null>[] = urls.map(url => 
-      this.extractContent(url).catch(error => {
-        console.error(`❌ [ContentExtractor] Error in batch extraction for ${url}:`, error);
-        return null;
-      })
+  async extractBatch(
+    urls: string[],
+    options: {
+      concurrency?: number;
+      onProgress?: (completed: number, total: number, url: string) => void;
+    } = {}
+  ): Promise<(ExtractedContent | null)[]> {
+    const concurrency = options.concurrency || 5;
+    console.log(`📖 [ContentExtractor] Starting parallel batch extraction of ${urls.length} URLs (concurrency: ${concurrency})`);
+
+    const limit = pLimit(concurrency);
+    let completed = 0;
+
+    const results = await Promise.all(
+      urls.map(url =>
+        limit(async () => {
+          try {
+            const result = await this.extractContent(url);
+            completed++;
+            options.onProgress?.(completed, urls.length, url);
+            return result;
+          } catch (error) {
+            console.error(`❌ [ContentExtractor] Error in batch extraction for ${url}:`, error);
+            completed++;
+            options.onProgress?.(completed, urls.length, url);
+            return null;
+          }
+        })
+      )
     );
 
-    const extracted = await Promise.all(results);
-    const successful = extracted.filter(Boolean).length;
-    
+    const successful = results.filter(Boolean).length;
     console.log(`📖 [ContentExtractor] Batch complete: ${successful}/${urls.length} successful`);
-    return extracted;
+    return results;
   }
 
   private async fetchContent(url: string): Promise<string | null> {
@@ -174,7 +194,7 @@ export class ContentExtractor {
 
         try {
           const response = await fetch(url, {
-            headers: { 
+            headers: {
               'User-Agent': this.userAgent,
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
               'Accept-Language': 'en-US,en;q=0.9'
@@ -194,7 +214,7 @@ export class ContentExtractor {
           }
 
           const html = await response.text();
-          
+
           if (html.length > this.maxContentSize) {
             throw new Error(`Content too large: ${html.length} bytes`);
           }
@@ -214,7 +234,7 @@ export class ContentExtractor {
 
   private async extractFromHTML(html: string, url: string): Promise<ExtractedContent | null> {
     const errors: string[] = [];
-    
+
     try {
       // Try Readability first (most reliable)
       const readabilityResult = this.extractWithReadability(html, url);
@@ -257,19 +277,19 @@ export class ContentExtractor {
     try {
       const dom = new JSDOM(html, { url });
       const document = dom.window.document;
-      
+
       const reader = new Readability(document);
       const article = reader.parse();
-      
+
       if (!article) {
         return null;
       }
 
       // Extract structured data
       const structured = this.extractStructuredData(html, url);
-      
+
       // Calculate metrics
-      const wordCount = this.countWords(article.textContent);
+      const wordCount = this.countWords(article.textContent ?? '');
       const readingTime = Math.ceil(wordCount / this.wordsPerMinute);
 
       return {
@@ -299,29 +319,30 @@ export class ContentExtractor {
   private extractWithFallback(html: string, url: string): ExtractedContent | null {
     try {
       const $ = cheerio.load(html);
-      
+
       // Remove unwanted elements
       const unwantedSelectors = [
-        'script', 'style', 'nav', 'header', 'footer', 
+        'script', 'style', 'nav', 'header', 'footer',
         '.advertisement', '.ads', '.social-share', '.comments',
         '.sidebar', '.navigation', '.menu', '.popup', '.modal'
       ];
-      
+
       unwantedSelectors.forEach(selector => $(selector).remove());
 
       // Try to find the main content
       let content = '';
       let title = '';
-      
+
       // Extract title
-      title = $('h1').first().text().trim() || 
-              $('title').text().trim() ||
-              $('meta[property="og:title"]').attr('content') || '';
+      title = $('h1').first().text().trim() ||
+        $('title').text().trim() ||
+        $('meta[property="og:title"]').attr('content') || '';
 
       // Try different content selectors
       const contentSelectors = [
-        'article', 
-        '.article-content', 
+        '.blog-post__body',      // Arista blogs, HubSpot blogs
+        'article',
+        '.article-content',
         '.post-content',
         '.entry-content',
         '.content',
@@ -352,7 +373,7 @@ export class ContentExtractor {
       const textContent = $(content).text().trim();
       const wordCount = this.countWords(textContent);
       const readingTime = Math.ceil(wordCount / this.wordsPerMinute);
-      
+
       // Extract structured data
       const structured = this.extractStructuredData(html, url);
 
@@ -381,7 +402,7 @@ export class ContentExtractor {
 
   private extractStructuredData(html: string, url: string) {
     const structured: ExtractedContent['structured'] = {};
-    
+
     try {
       const $ = cheerio.load(html);
 
@@ -398,7 +419,7 @@ export class ContentExtractor {
           // Skip malformed JSON-LD
         }
       });
-      
+
       if (jsonLdScripts.length > 0) {
         structured.jsonLd = jsonLdScripts;
       }
@@ -412,7 +433,7 @@ export class ContentExtractor {
           openGraph[property] = content;
         }
       });
-      
+
       if (Object.keys(openGraph).length > 0) {
         structured.openGraph = openGraph;
       }
@@ -426,7 +447,7 @@ export class ContentExtractor {
           twitterCard[name] = content;
         }
       });
-      
+
       if (Object.keys(twitterCard).length > 0) {
         structured.twitterCard = twitterCard;
       }
@@ -449,7 +470,7 @@ export class ContentExtractor {
           microdata.push(item);
         }
       });
-      
+
       if (microdata.length > 0) {
         structured.microdata = microdata;
       }
@@ -464,7 +485,7 @@ export class ContentExtractor {
   private extractPublishedTime(html: string): Date | undefined {
     try {
       const $ = cheerio.load(html);
-      
+
       // Try different selectors for published time
       const timeSelectors = [
         'meta[property="article:published_time"]',
@@ -498,10 +519,10 @@ export class ContentExtractor {
   private extractSiteName(html: string): string | undefined {
     try {
       const $ = cheerio.load(html);
-      
+
       return $('meta[property="og:site_name"]').attr('content') ||
-             $('meta[name="application-name"]').attr('content') ||
-             undefined;
+        $('meta[name="application-name"]').attr('content') ||
+        undefined;
     } catch {
       return undefined;
     }
@@ -510,11 +531,11 @@ export class ContentExtractor {
   private extractLanguage(html: string): string | undefined {
     try {
       const $ = cheerio.load(html);
-      
+
       return $('html').attr('lang') ||
-             $('meta[name="language"]').attr('content') ||
-             $('meta[http-equiv="content-language"]').attr('content') ||
-             undefined;
+        $('meta[name="language"]').attr('content') ||
+        $('meta[http-equiv="content-language"]').attr('content') ||
+        undefined;
     } catch {
       return undefined;
     }
@@ -555,7 +576,7 @@ export class ContentExtractor {
     const htmlLength = content.content.length;
     const textLength = content.textContent.length;
     const ratio = textLength / htmlLength;
-    
+
     if (ratio < 0.1) {
       issues.push('Low text-to-HTML ratio - may be poorly extracted');
       score -= 0.2;
@@ -565,7 +586,7 @@ export class ContentExtractor {
     const sentences = content.textContent.split('.').filter(s => s.trim().length > 10);
     const uniqueSentences = new Set(sentences);
     const duplicateRatio = (sentences.length - uniqueSentences.size) / sentences.length;
-    
+
     if (duplicateRatio > 0.3) {
       issues.push('High duplicate content detected');
       score -= 0.3;

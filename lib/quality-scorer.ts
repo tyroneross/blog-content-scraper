@@ -50,6 +50,107 @@ export const DEFAULT_DENY_PATHS = [
   '/archive/*',
   '/search',
   '/search/*',
+  // Non-article content pages
+  '/use-cases',
+  '/use-cases/*',
+  '/solutions',
+  '/solutions/*',
+  '/products',
+  '/products/*',
+  '/services',
+  '/services/*',
+  '/partners',
+  '/partners/*',
+  '/support',
+  '/support/*',
+  '/help',
+  '/help/*',
+  '/faq',
+  '/faq/*',
+  '/pricing',
+  '/pricing/*',
+  '/features',
+  '/features/*',
+  '/demo',
+  '/demo/*',
+  '/login',
+  '/signup',
+  '/register',
+  '/account',
+  '/account/*',
+  '/dashboard',
+  '/dashboard/*',
+  '/settings',
+  '/settings/*',
+  '/trust-center',
+  '/trust-center/*',
+  '/ai-trust-center',
+  '/ai-trust-center/*',
+  '/safety',
+  '/safety/*',
+  '/compliance',
+  '/compliance/*',
+  '/certification',
+  '/certification/*',
+  '/industries',
+  '/industries/*',
+  '/platform',
+  '/platform/*',
+  '/developers',
+  '/developers/*',
+  '/documentation',
+  '/documentation/*',
+  '/docs',
+  '/docs/*',
+  '/api',
+  '/api/*',
+  '/download',
+  '/download/*',
+  '/downloads',
+  '/downloads/*',
+  // Non-English language paths (filter to English only)
+  '/cs-cz/*',  // Czech
+  '/de-de/*',  // German
+  '/de-at/*',  // German (Austria)
+  '/de-ch/*',  // German (Swiss)
+  '/fr-fr/*',  // French
+  '/fr-ca/*',  // French (Canada)
+  '/es-es/*',  // Spanish
+  '/es-mx/*',  // Spanish (Mexico)
+  '/es-la/*',  // Spanish (Latin America)
+  '/it-it/*',  // Italian
+  '/ja-jp/*',  // Japanese
+  '/ko-kr/*',  // Korean
+  '/zh-cn/*',  // Chinese (Simplified)
+  '/zh-tw/*',  // Chinese (Traditional)
+  '/zh-hk/*',  // Chinese (Hong Kong)
+  '/pt-br/*',  // Portuguese (Brazil)
+  '/pt-pt/*',  // Portuguese
+  '/ru-ru/*',  // Russian
+  '/pl-pl/*',  // Polish
+  '/nl-nl/*',  // Dutch
+  '/sv-se/*',  // Swedish
+  '/nb-no/*',  // Norwegian
+  '/da-dk/*',  // Danish
+  '/fi-fi/*',  // Finnish
+  '/tr-tr/*',  // Turkish
+  '/ar-ae/*',  // Arabic
+  '/he-il/*',  // Hebrew
+  '/th-th/*',  // Thai
+  '/vi-vn/*',  // Vietnamese
+  '/id-id/*',  // Indonesian
+  // Short language codes
+  '/de/*',
+  '/fr/*',
+  '/es/*',
+  '/it/*',
+  '/ja/*',
+  '/ko/*',
+  '/zh/*',
+  '/pt/*',
+  '/ru/*',
+  '/pl/*',
+  '/nl/*',
 ];
 
 /**
@@ -168,6 +269,37 @@ export function calculateArticleQualityScore(
 }
 
 /**
+ * Regex pattern for locale paths (xx-yy format like /en-us/, /fr-be/)
+ */
+const LOCALE_PATH_REGEX = /^\/[a-z]{2}[-_][a-z]{2}(?:\/|$)/i;
+
+/**
+ * Regex pattern for US English locale path (/en-us/ only)
+ */
+const US_ENGLISH_LOCALE_REGEX = /^\/en[-_]us(?:\/|$)/i;
+
+/**
+ * Check if a path should be filtered out (non-US-English locale)
+ *
+ * Returns true (should filter) for:
+ * - /fr-be/, /de-de/, /ja-jp/, /zh-cn/ (non-English locales)
+ * - /en-gb/, /en-au/, /en-ca/ (non-US English locales)
+ *
+ * Returns false (should keep) for:
+ * - /en-us/ (US English only)
+ * - /blog/, /news/, /articles/ (no locale prefix - default to US English)
+ */
+export function isNonEnglishLocalePath(path: string): boolean {
+  // If path has a locale prefix (xx-yy format)
+  if (LOCALE_PATH_REGEX.test(path)) {
+    // Only allow /en-us/
+    return !US_ENGLISH_LOCALE_REGEX.test(path);
+  }
+  // No locale prefix - allow (assume US English)
+  return false;
+}
+
+/**
  * Check if a URL should be denied based on path patterns
  *
  * @param url - URL to check
@@ -178,6 +310,11 @@ export function shouldDenyUrl(url: string, denyPaths: string[] = DEFAULT_DENY_PA
   try {
     const urlObj = new URL(url);
     const path = urlObj.pathname;
+
+    // First check for non-English locale patterns (e.g., /fr-be/, /de-ch/)
+    if (isNonEnglishLocalePath(path)) {
+      return true;
+    }
 
     return denyPaths.some((pattern) => {
       // Exact match
