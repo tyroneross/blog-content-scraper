@@ -5,10 +5,24 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ScraperTestProps, ScraperTestResult, ProgressState } from '@/lib/types';
 import { ScraperResults } from './ScraperResults';
-import { TestTube, Sparkles } from 'lucide-react';
+import { TestTube, Sparkles, Plus, X } from 'lucide-react';
+
+// Default patterns from the scraper - these match source-orchestrator.ts and quality-scorer.ts
+const DEFAULT_ALLOW_PATTERNS = [
+  '/news/*', '/blog/*', '/articles/*', '/posts/*', '/stories/*',
+  '/press/*', '/updates/*', '/announcements/*', '/insights/*',
+  '/resources/*', '/publications/*', '/research/*', '/engineering/*'
+];
+
+const DEFAULT_DENY_PATTERNS = [
+  '/', '/about/*', '/careers/*', '/jobs/*', '/contact/*', '/team/*',
+  '/privacy', '/terms', '/legal/*', '/tag/*', '/category/*',
+  '/author/*', '/archive/*', '/search/*', '/login', '/signup',
+  '/pricing/*', '/features/*', '/demo/*', '/account/*', '/dashboard/*'
+];
 
 const EXAMPLE_URLS = [
   { name: 'Anthropic News', url: 'https://www.anthropic.com/news' },
@@ -32,8 +46,95 @@ export function ScraperTester({
   const [extractFullContent, setExtractFullContent] = useState(true); // Default to true (production mode)
   const [showAdvanced, setShowAdvanced] = useState(false); // Advanced filtering controls
   const [qualityThreshold, setQualityThreshold] = useState(0.6); // Default 60%
-  const [customAllowPaths, setCustomAllowPaths] = useState(''); // Optional custom allow patterns
-  const [customDenyPaths, setCustomDenyPaths] = useState(''); // Optional custom deny patterns
+
+  // Pattern management - track which defaults are enabled and custom additions
+  const [enabledAllowPatterns, setEnabledAllowPatterns] = useState<Set<string>>(new Set(DEFAULT_ALLOW_PATTERNS));
+  const [enabledDenyPatterns, setEnabledDenyPatterns] = useState<Set<string>>(new Set(DEFAULT_DENY_PATTERNS));
+  const [customAllowPatterns, setCustomAllowPatterns] = useState<string[]>([]);
+  const [customDenyPatterns, setCustomDenyPatterns] = useState<string[]>([]);
+  const [newAllowPattern, setNewAllowPattern] = useState('');
+  const [newDenyPattern, setNewDenyPattern] = useState('');
+
+  // Compute final patterns that will be used
+  const finalAllowPatterns = useMemo(() => {
+    const patterns = [...enabledAllowPatterns, ...customAllowPatterns];
+    return patterns;
+  }, [enabledAllowPatterns, customAllowPatterns]);
+
+  const finalDenyPatterns = useMemo(() => {
+    const patterns = [...enabledDenyPatterns, ...customDenyPatterns];
+    return patterns;
+  }, [enabledDenyPatterns, customDenyPatterns]);
+
+  // Check if patterns have been modified from defaults
+  const patternsModified = useMemo(() => {
+    const allowModified = enabledAllowPatterns.size !== DEFAULT_ALLOW_PATTERNS.length ||
+      !DEFAULT_ALLOW_PATTERNS.every(p => enabledAllowPatterns.has(p)) ||
+      customAllowPatterns.length > 0;
+    const denyModified = enabledDenyPatterns.size !== DEFAULT_DENY_PATTERNS.length ||
+      !DEFAULT_DENY_PATTERNS.every(p => enabledDenyPatterns.has(p)) ||
+      customDenyPatterns.length > 0;
+    return allowModified || denyModified;
+  }, [enabledAllowPatterns, enabledDenyPatterns, customAllowPatterns, customDenyPatterns]);
+
+  // Toggle a default pattern on/off
+  const toggleAllowPattern = (pattern: string) => {
+    setEnabledAllowPatterns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(pattern)) {
+        newSet.delete(pattern);
+      } else {
+        newSet.add(pattern);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleDenyPattern = (pattern: string) => {
+    setEnabledDenyPatterns(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(pattern)) {
+        newSet.delete(pattern);
+      } else {
+        newSet.add(pattern);
+      }
+      return newSet;
+    });
+  };
+
+  // Add custom pattern
+  const addCustomAllowPattern = () => {
+    const pattern = newAllowPattern.trim();
+    if (pattern && !customAllowPatterns.includes(pattern) && !enabledAllowPatterns.has(pattern)) {
+      setCustomAllowPatterns(prev => [...prev, pattern]);
+      setNewAllowPattern('');
+    }
+  };
+
+  const addCustomDenyPattern = () => {
+    const pattern = newDenyPattern.trim();
+    if (pattern && !customDenyPatterns.includes(pattern) && !enabledDenyPatterns.has(pattern)) {
+      setCustomDenyPatterns(prev => [...prev, pattern]);
+      setNewDenyPattern('');
+    }
+  };
+
+  // Remove custom pattern
+  const removeCustomAllowPattern = (pattern: string) => {
+    setCustomAllowPatterns(prev => prev.filter(p => p !== pattern));
+  };
+
+  const removeCustomDenyPattern = (pattern: string) => {
+    setCustomDenyPatterns(prev => prev.filter(p => p !== pattern));
+  };
+
+  // Reset to defaults
+  const resetPatterns = () => {
+    setEnabledAllowPatterns(new Set(DEFAULT_ALLOW_PATTERNS));
+    setEnabledDenyPatterns(new Set(DEFAULT_DENY_PATTERNS));
+    setCustomAllowPatterns([]);
+    setCustomDenyPatterns([]);
+  };
 
   const handleTest = async () => {
     if (!url.trim()) {
@@ -65,16 +166,6 @@ export function ScraperTester({
     }
 
     try {
-      // Parse custom paths (one per line, filter empty lines)
-      const allowPaths = customAllowPaths
-        .split('\n')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
-      const denyPaths = customDenyPaths
-        .split('\n')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
-
       // Use streaming endpoint for real-time progress
       const response = await fetch('/api/scraper-test/stream', {
         method: 'POST',
@@ -87,8 +178,8 @@ export function ScraperTester({
           maxArticles: 5, // Reduced for faster testing
           extractFullContent,
           qualityThreshold,
-          allowPaths: allowPaths.length > 0 ? allowPaths : undefined,
-          denyPaths: denyPaths.length > 0 ? denyPaths : undefined,
+          allowPaths: finalAllowPatterns.length > 0 ? finalAllowPatterns : undefined,
+          denyPaths: finalDenyPatterns.length > 0 ? finalDenyPatterns : undefined,
         }),
       });
 
@@ -256,7 +347,11 @@ export function ScraperTester({
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-gray-700">⚙️ Advanced Filtering</span>
-                <span className="text-xs text-gray-500">(Optional)</span>
+                {patternsModified && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                    Modified
+                  </span>
+                )}
               </div>
               <svg
                 className={`w-4 h-4 text-gray-500 transition-transform ${showAdvanced ? 'rotate-180' : ''}`}
@@ -269,7 +364,7 @@ export function ScraperTester({
             </button>
 
             {showAdvanced && (
-              <div className="p-4 space-y-4 bg-white">
+              <div className="p-4 space-y-5 bg-white">
                 {/* Quality Threshold Slider */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -294,56 +389,179 @@ export function ScraperTester({
                     <span>More articles</span>
                     <span>Better quality</span>
                   </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    Only show articles scoring ≥{Math.round(qualityThreshold * 100)}% (includes date, author, content quality)
-                  </p>
                 </div>
 
-                {/* Default Patterns Info */}
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-xs font-medium text-gray-700 mb-2">Current Default Deny Patterns:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {['/', '/about/*', '/careers/*', '/jobs/*', '/contact/*', '/team/*', '/privacy', '/terms', '/legal/*', '/tag/*', '/category/*', '/search', '/login', '/signup'].map(p => (
-                      <span key={p} className="px-2 py-0.5 bg-red-50 text-red-700 text-xs rounded font-mono">{p}</span>
-                    ))}
+                {/* Pattern Summary */}
+                {patternsModified && (
+                  <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-sm text-blue-800">
+                      <span className="font-medium">Next search:</span>{' '}
+                      {finalAllowPatterns.length} allow, {finalDenyPatterns.length} deny patterns
+                    </div>
+                    <button
+                      onClick={resetPatterns}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      disabled={loading}
+                    >
+                      Reset to defaults
+                    </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">These are blocked by default. Override below if needed.</p>
+                )}
+
+                {/* Allow Patterns Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700">
+                      ✅ Allow Patterns
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      {finalAllowPatterns.length} active
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Click to toggle. Only URLs matching these patterns will be scraped.
+                  </p>
+
+                  {/* Default Allow Patterns - Clickable */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {DEFAULT_ALLOW_PATTERNS.map(pattern => {
+                      const isEnabled = enabledAllowPatterns.has(pattern);
+                      return (
+                        <button
+                          key={pattern}
+                          onClick={() => toggleAllowPattern(pattern)}
+                          disabled={loading}
+                          className={`px-2 py-1 text-xs font-mono rounded transition-all ${
+                            isEnabled
+                              ? 'bg-green-100 text-green-800 border border-green-300 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 line-through hover:bg-gray-200'
+                          }`}
+                        >
+                          {pattern}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom Allow Patterns */}
+                  {customAllowPatterns.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customAllowPatterns.map(pattern => (
+                        <span
+                          key={pattern}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-green-200 text-green-900 border border-green-400 rounded"
+                        >
+                          {pattern}
+                          <button
+                            onClick={() => removeCustomAllowPattern(pattern)}
+                            disabled={loading}
+                            className="hover:text-green-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Custom Allow Pattern */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newAllowPattern}
+                      onChange={(e) => setNewAllowPattern(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addCustomAllowPattern()}
+                      placeholder="/custom/path/*"
+                      className="flex-1 px-3 py-1.5 text-xs font-mono border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      disabled={loading}
+                    />
+                    <button
+                      onClick={addCustomAllowPattern}
+                      disabled={loading || !newAllowPattern.trim()}
+                      className="px-3 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-300 rounded hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </button>
+                  </div>
                 </div>
 
-                {/* Custom Allow Paths */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    ✅ Allow Patterns (Optional)
-                  </label>
-                  <textarea
-                    value={customAllowPaths}
-                    onChange={(e) => setCustomAllowPaths(e.target.value)}
-                    placeholder={`Only scrape URLs matching these patterns:\n/blog/*\n/news/*\n/articles/*`}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 font-mono"
-                    rows={3}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-600 mt-1">
-                    One pattern per line. If set, only URLs matching these patterns will be scraped.
+                {/* Deny Patterns Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700">
+                      🚫 Deny Patterns
+                    </label>
+                    <span className="text-xs text-gray-500">
+                      {finalDenyPatterns.length} active
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600">
+                    Click to toggle. URLs matching these patterns will be blocked.
                   </p>
-                </div>
 
-                {/* Custom Deny Paths */}
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-2 block">
-                    🚫 Deny Patterns (Override Defaults)
-                  </label>
-                  <textarea
-                    value={customDenyPaths}
-                    onChange={(e) => setCustomDenyPaths(e.target.value)}
-                    placeholder={`Leave empty to use defaults above, or specify custom patterns:\n/pricing\n/docs/*\n/api/*`}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
-                    rows={3}
-                    disabled={loading}
-                  />
-                  <p className="text-xs text-gray-600 mt-1">
-                    One pattern per line. If set, replaces the defaults above.
-                  </p>
+                  {/* Default Deny Patterns - Clickable */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {DEFAULT_DENY_PATTERNS.map(pattern => {
+                      const isEnabled = enabledDenyPatterns.has(pattern);
+                      return (
+                        <button
+                          key={pattern}
+                          onClick={() => toggleDenyPattern(pattern)}
+                          disabled={loading}
+                          className={`px-2 py-1 text-xs font-mono rounded transition-all ${
+                            isEnabled
+                              ? 'bg-red-100 text-red-800 border border-red-300 hover:bg-red-200'
+                              : 'bg-gray-100 text-gray-400 border border-gray-200 line-through hover:bg-gray-200'
+                          }`}
+                        >
+                          {pattern}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom Deny Patterns */}
+                  {customDenyPatterns.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {customDenyPatterns.map(pattern => (
+                        <span
+                          key={pattern}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-mono bg-red-200 text-red-900 border border-red-400 rounded"
+                        >
+                          {pattern}
+                          <button
+                            onClick={() => removeCustomDenyPattern(pattern)}
+                            disabled={loading}
+                            className="hover:text-red-600"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Add Custom Deny Pattern */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newDenyPattern}
+                      onChange={(e) => setNewDenyPattern(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addCustomDenyPattern()}
+                      placeholder="/unwanted/path/*"
+                      className="flex-1 px-3 py-1.5 text-xs font-mono border border-gray-300 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                      disabled={loading}
+                    />
+                    <button
+                      onClick={addCustomDenyPattern}
+                      disabled={loading || !newDenyPattern.trim()}
+                      className="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-300 rounded hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
