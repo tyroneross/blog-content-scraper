@@ -318,7 +318,8 @@ export class SourceOrchestrator {
       const rssArticles = await this.processAsRSS(url);
       if (rssArticles.length > 0) {
         result.sourceInfo.detectedType = 'rss';
-        result.articles = this.applyPathFilters(rssArticles, config);
+        // RSS is already curated content - only apply deny filters, not allow filters
+        result.articles = this.applyPathFilters(rssArticles, config, { skipAllowFilters: true });
         console.log(`✅ [Orchestrator] Detected as RSS feed: ${result.articles.length} articles`);
         return this.finalizeResult(result);
       }
@@ -337,7 +338,8 @@ export class SourceOrchestrator {
         const rssArticles = await this.processAsRSS(bestFeed.url);
         if (rssArticles.length > 0) {
           result.sourceInfo.detectedType = 'rss';
-          result.articles = this.applyPathFilters(rssArticles, config);
+          // RSS is already curated content - only apply deny filters, not allow filters
+          result.articles = this.applyPathFilters(rssArticles, config, { skipAllowFilters: true });
           console.log(`✅ [Orchestrator] Using discovered RSS feed: ${result.articles.length} articles`);
           return this.finalizeResult(result);
         }
@@ -692,8 +694,17 @@ export class SourceOrchestrator {
   /**
    * Apply path filtering based on allowPaths and denyPaths
    * Also filters out non-English locale paths
+   *
+   * @param articles - Articles to filter
+   * @param config - Source configuration
+   * @param options - Filtering options
+   * @param options.skipAllowFilters - Skip allow path filtering (useful for RSS which is already curated)
    */
-  private applyPathFilters(articles: CandidateArticle[], config: SourceConfig): CandidateArticle[] {
+  private applyPathFilters(
+    articles: CandidateArticle[],
+    config: SourceConfig,
+    options: { skipAllowFilters?: boolean } = {}
+  ): CandidateArticle[] {
     return articles.filter(article => {
       try {
         const urlObj = new URL(article.url);
@@ -704,7 +715,7 @@ export class SourceOrchestrator {
           return false;
         }
 
-        // Check deny patterns first
+        // Check deny patterns first (always apply)
         if (config.denyPaths?.length) {
           for (const pattern of config.denyPaths) {
             if (this.matchesPattern(path, pattern)) {
@@ -714,7 +725,12 @@ export class SourceOrchestrator {
           }
         }
 
-        // Check allow patterns
+        // Skip allow pattern filtering for RSS (RSS is already curated content)
+        if (options.skipAllowFilters) {
+          return true;
+        }
+
+        // Check allow patterns (only for sitemap/HTML sources)
         if (config.allowPaths?.length) {
           for (const pattern of config.allowPaths) {
             if (this.matchesPattern(path, pattern)) {
