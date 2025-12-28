@@ -1,4 +1,27 @@
-# Web Scraper Testing App
+# Blog Content Scraper
+
+Intelligent web scraper for extracting blog/news content from any website. Includes both a **web UI** for testing and a **programmatic SDK** for integration.
+
+## Quick Start (SDK)
+
+```typescript
+import { scrapeWebsite } from './lib';
+
+const result = await scrapeWebsite('https://techcrunch.com', {
+  maxArticles: 5,
+  extractFullContent: true
+});
+
+for (const article of result.articles) {
+  console.log(article.title, article.qualityScore);
+}
+```
+
+See [SDK Documentation](#sdk-documentation) below for full API reference.
+
+---
+
+## Web UI
 
 Standalone web application for testing web scraping with intelligent content filtering. Built with Next.js, Mozilla Readability, and zero LLM dependencies.
 
@@ -210,6 +233,113 @@ Contributions welcome! Areas for improvement:
 
 - Issues: https://github.com/tyroneross/scraper-app/issues
 - Questions: Open a discussion
+
+---
+
+## SDK Documentation
+
+The SDK provides programmatic access to the scraping engine without the web UI.
+
+### Installation
+
+```bash
+npm install
+```
+
+### Basic Usage
+
+```typescript
+import { scrapeWebsite } from './lib';
+
+const result = await scrapeWebsite('https://example.com/blog', {
+  maxArticles: 10,           // Max articles to return (default: 10)
+  extractFullContent: true,  // Get full article text (default: true)
+  qualityThreshold: 0.5,     // Min quality score 0-1 (default: 0.5)
+  sourceType: 'auto',        // 'auto' | 'rss' | 'sitemap' | 'html'
+  allowPaths: ['/blog/*'],   // Only scrape these paths
+  denyPaths: ['/about'],     // Skip these paths
+  onProgress: (done, total) => console.log(`${done}/${total}`)
+});
+```
+
+### Response Format
+
+```typescript
+{
+  url: string;
+  detectedType: 'rss' | 'sitemap' | 'html';
+  articles: Array<{
+    url: string;
+    title: string;
+    publishedDate: string;
+    description?: string;
+    fullContent?: string;          // Raw HTML
+    fullContentMarkdown?: string;  // Formatted markdown
+    fullContentText?: string;      // Plain text
+    qualityScore: number;          // 0-1
+    confidence: number;
+    source: 'rss' | 'sitemap' | 'html';
+  }>;
+  stats: {
+    totalDiscovered: number;
+    afterQualityFilter: number;
+    processingTime: number;
+  };
+  errors: string[];
+}
+```
+
+### Advanced: Direct Orchestrator
+
+```typescript
+import { globalSourceOrchestrator } from './lib';
+
+const result = await globalSourceOrchestrator.processSource(url, {
+  sourceType: 'auto',
+  allowPaths: ['/news/*'],
+  denyPaths: ['/about', '/careers/*']
+});
+
+// Enhance with full content (parallel processing)
+const enhanced = await globalSourceOrchestrator.enhanceWithFullContent(
+  result.articles,
+  10,
+  { concurrency: 5, onProgress: (done, total) => {} }
+);
+```
+
+### Rate Limiter Presets
+
+```typescript
+import { createRateLimiter } from './lib';
+
+const limiter = createRateLimiter('moderate'); // or 'conservative', 'aggressive'
+```
+
+| Preset | Req/s | Max Concurrent | Per Host |
+|--------|-------|----------------|----------|
+| conservative | 1 | 10 | 2 |
+| moderate | 2 | 20 | 3 |
+| aggressive | 4 | 30 | 5 |
+
+### Path Patterns
+
+```typescript
+'/blog/*'      // Matches /blog/anything
+'/news/2024/*' // Matches /news/2024/anything
+'/about'       // Exact match
+```
+
+**Default deny patterns:** `/`, `/about/*`, `/careers/*`, `/contact/*`, `/tag/*`, `/category/*`, `/login`, `/signup`, `/pricing/*`
+
+### Quality Scoring
+
+Score weights:
+- Content quality: 60%
+- Publication date: 12%
+- Author/byline: 8%
+- Schema.org data: 8%
+- Reading time: 12%
 
 ---
 

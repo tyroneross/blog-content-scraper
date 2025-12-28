@@ -154,6 +154,26 @@ export const DEFAULT_DENY_PATHS = [
 ];
 
 /**
+ * Default patterns for content sections (blog, news, articles)
+ * Used for allow-listing paths when scraping
+ */
+export const DEFAULT_ALLOW_PATHS = [
+  '/news/*',
+  '/blog/*',
+  '/articles/*',
+  '/posts/*',
+  '/stories/*',
+  '/press/*',
+  '/updates/*',
+  '/announcements/*',
+  '/insights/*',
+  '/resources/*',
+  '/publications/*',
+  '/research/*',
+  '/engineering/*',
+];
+
+/**
  * Validate content quality (Tier 2 filtering)
  * Checks length, title quality, and text-to-HTML ratio
  *
