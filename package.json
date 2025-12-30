@@ -1,32 +1,62 @@
 {
-  "name": "scraper-app",
+  "name": "@tyroneross/blog-content-scraper",
   "version": "1.0.0",
-  "description": "Standalone web scraper testing application",
-  "private": true,
+  "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
+  "main": "./dist/lib/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.js"
+    }
+  },
+  "files": [
+    "dist/lib",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "keywords": [
+    "scraper",
+    "web-scraper",
+    "blog",
+    "rss",
+    "sitemap",
+    "content-extraction",
+    "readability",
+    "news",
+    "article"
+  ],
+  "author": "Tyrone Ross",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tyroneross/blog-content-scraper"
+  },
+  "homepage": "https://github.com/tyroneross/blog-content-scraper#readme",
+  "bugs": {
+    "url": "https://github.com/tyroneross/blog-content-scraper/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:sdk": "tsc -p tsconfig.build.json",
     "start": "next start",
     "lint": "next lint",
     "pre-deploy": "./scripts/pre-deploy.sh",
     "typecheck": "tsc --noEmit",
     "test:f1": "tsx tests/run-f1-tests.ts",
-    "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts"
+    "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
+    "prepublishOnly": "npm run build:sdk"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@tailwindcss/typography": "^0.5.19",
-    "@tyroneross/claude-code-debugger": "^1.3.0",
     "cheerio": "^1.1.2",
     "global-agent": "^3.0.0",
     "jsdom": "^24.0.0",
-    "lucide-react": "^0.400.0",
-    "next": "^16.1.1",
     "p-limit": "^7.2.0",
     "playwright": "^1.57.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "rss-parser": "^3.13.0",
     "turndown": "^7.2.1",
@@ -34,6 +64,8 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tyroneross/claude-code-debugger": "^1.3.0",
     "@types/global-agent": "^3.0.0",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.0.0",
@@ -42,7 +74,12 @@
     "@types/turndown": "^5.0.5",
     "eslint": "^8.0.0",
     "eslint-config-next": "^15.0.0",
+    "lucide-react": "^0.400.0",
+    "next": "^16.1.1",
     "postcss": "^8.4.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.7.0",
     "typescript": "^5.0.0"

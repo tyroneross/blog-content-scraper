@@ -1,0 +1,12 @@
+{
+  "name": "blog-content-scraper",
+  "version": "1.0.0",
+  "description": "Web scraper for extracting blog/news content from any website. Supports RSS, sitemaps, and HTML with automatic detection.",
+  "author": {
+    "name": "Tyrone Ross",
+    "url": "https://github.com/tyroneross"
+  },
+  "repository": "https://github.com/tyroneross/blog-content-scraper",
+  "license": "MIT",
+  "keywords": ["scraper", "web", "blog", "rss", "sitemap", "content", "news", "articles"]
+}
