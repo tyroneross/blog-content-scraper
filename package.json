@@ -1,6 +1,6 @@
 {
   "name": "@tyroneross/blog-content-scraper",
-  "version": "1.0.0",
+  "version": "0.3.0",
   "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
