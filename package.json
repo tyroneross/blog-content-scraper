@@ -1,6 +1,6 @@
 {
   "name": "@tyroneross/blog-scraper",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
@@ -94,7 +94,8 @@
     "typecheck": "tsc --noEmit",
     "test:f1": "tsx tests/run-f1-tests.ts",
     "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
-    "prepublishOnly": "npm run build:sdk"
+    "prepublishOnly": "npm run build:sdk",
+    "scraper-update": "npm update @tyroneross/blog-scraper@latest && echo '✅ @tyroneross/blog-scraper updated to latest version'"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
