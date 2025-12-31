@@ -1,6 +1,6 @@
 {
   "name": "@tyroneross/blog-scraper",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
@@ -9,6 +9,46 @@
       "types": "./dist/lib/index.d.ts",
       "import": "./dist/lib/index.js",
       "require": "./dist/lib/index.js"
+    },
+    "./llm": {
+      "types": "./dist/lib/llm/index.d.ts",
+      "import": "./dist/lib/llm/index.js",
+      "require": "./dist/lib/llm/index.js"
+    },
+    "./testing": {
+      "types": "./dist/lib/testing/index.d.ts",
+      "import": "./dist/lib/testing/index.js",
+      "require": "./dist/lib/testing/index.js"
+    },
+    "./cache": {
+      "types": "./dist/lib/cache/index.d.ts",
+      "import": "./dist/lib/cache/index.js",
+      "require": "./dist/lib/cache/index.js"
+    },
+    "./validation": {
+      "types": "./dist/lib/validation/index.d.ts",
+      "import": "./dist/lib/validation/index.js",
+      "require": "./dist/lib/validation/index.js"
+    },
+    "./debug": {
+      "types": "./dist/lib/debug/index.d.ts",
+      "import": "./dist/lib/debug/index.js",
+      "require": "./dist/lib/debug/index.js"
+    },
+    "./batch": {
+      "types": "./dist/lib/batch/index.d.ts",
+      "import": "./dist/lib/batch/index.js",
+      "require": "./dist/lib/batch/index.js"
+    },
+    "./react": {
+      "types": "./dist/lib/react/index.d.ts",
+      "import": "./dist/lib/react/index.js",
+      "require": "./dist/lib/react/index.js"
+    },
+    "./express": {
+      "types": "./dist/lib/express/index.d.ts",
+      "import": "./dist/lib/express/index.js",
+      "require": "./dist/lib/express/index.js"
     }
   },
   "files": [
@@ -26,7 +66,13 @@
     "content-extraction",
     "readability",
     "news",
-    "article"
+    "article",
+    "llm",
+    "ai",
+    "token-estimation",
+    "batch-processing",
+    "react-hook",
+    "express-router"
   ],
   "author": "Tyrone Ross",
   "license": "MIT",
@@ -86,6 +132,18 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "express": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    }
   },
   "overrides": {
     "qs": ">=6.14.1"
