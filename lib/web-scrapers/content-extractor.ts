@@ -275,7 +275,17 @@ export class ContentExtractor {
 
   private extractWithReadability(html: string, url: string): ExtractedContent | null {
     try {
-      const dom = new JSDOM(html, { url });
+      // Suppress JSDOM CSS parse warnings (benign, from stylesheets we don't need)
+      const virtualConsole = new (require('jsdom').VirtualConsole)();
+      virtualConsole.on('error', () => { /* Suppress CSS parse errors */ });
+
+      const dom = new JSDOM(html, {
+        url,
+        virtualConsole,
+        // Don't run scripts or load external resources
+        runScripts: 'outside-only',
+        resources: 'usable'
+      });
       const document = dom.window.document;
 
       const reader = new Readability(document);

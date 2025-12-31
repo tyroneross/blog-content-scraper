@@ -897,6 +897,10 @@ export class SourceOrchestrator {
             const extractedContent = await globalContentExtractor.extractContent(article.url);
             if (extractedContent) {
               article.content = extractedContent.content;
+              // Update title if not already set or if extracted title is better
+              if (!article.title || article.title.length < 5) {
+                article.title = extractedContent.title || article.title;
+              }
               article.excerpt = extractedContent.excerpt || article.excerpt;
               article.confidence = Math.min(article.confidence + 0.1, 1.0);
               article.metadata = {
@@ -904,8 +908,15 @@ export class SourceOrchestrator {
                 fullContentExtracted: true,
                 extractionMethod: extractedContent.extractionMethod,
                 wordCount: extractedContent.wordCount,
-                readingTime: extractedContent.readingTime
+                readingTime: extractedContent.readingTime,
+                byline: extractedContent.byline,
+                siteName: extractedContent.siteName,
+                lang: extractedContent.lang
               };
+              // Store publishedTime if extracted and not already set
+              if (extractedContent.publishedTime && (!article.publishedAt || article.publishedAt.getTime() === 0)) {
+                article.publishedAt = extractedContent.publishedTime;
+              }
             }
           } catch (error) {
             console.warn(`⚠️ [Orchestrator] Failed to enhance article ${article.url}:`, error);
