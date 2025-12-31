@@ -1,6 +1,7 @@
 ---
-description: Scrape content from a blog/article URL
-allowed-tools: Bash(npx tsx:*), Read, Write
+description: Extract article content from a blog or news URL
+argument-hint: <url>
+allowed-tools: Bash(npx tsx:*), Bash(node:*), Read, Write
 ---
 
 # Scrape Command

@@ -1,6 +1,7 @@
 ---
-description: Extract LLM-ready content with token counts from a URL
-allowed-tools: Bash(npx tsx:*), Read, Write
+description: Extract LLM-ready content with token counts and chunks from a URL
+argument-hint: <url>
+allowed-tools: Bash(npx tsx:*), Bash(node:*), Read, Write
 ---
 
 # Scrape for LLM Command

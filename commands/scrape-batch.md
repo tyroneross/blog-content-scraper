@@ -1,6 +1,7 @@
 ---
-description: Batch scrape multiple URLs
-allowed-tools: Bash(npx tsx:*), Read, Write
+description: Batch scrape multiple URLs with progress tracking
+argument-hint: <url1> <url2> [url3...]
+allowed-tools: Bash(npx tsx:*), Bash(node:*), Read, Write
 ---
 
 # Batch Scrape Command

@@ -3,8 +3,13 @@
   "version": "0.4.2",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {
-    "name": "Tyrone Ross"
+    "name": "Tyrone Ross",
+    "url": "https://github.com/tyroneross"
   },
+  "homepage": "https://github.com/tyroneross/blog-content-scraper",
+  "repository": "https://github.com/tyroneross/blog-content-scraper",
+  "license": "MIT",
   "keywords": ["scraper", "web", "blog", "rss", "content", "llm", "articles"],
-  "repository": "https://github.com/tyroneross/blog-content-scraper"
+  "commands": "commands/",
+  "skills": "skills/"
 }
