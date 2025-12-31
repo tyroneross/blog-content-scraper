@@ -1,5 +1,5 @@
 {
-  "name": "@tyroneross/blog-content-scraper",
+  "name": "@tyroneross/blog-scraper",
   "version": "0.3.0",
   "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
   "main": "./dist/lib/index.js",
@@ -32,11 +32,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tyroneross/blog-content-scraper.git"
+    "url": "git+https://github.com/tyroneross/blog-scraper.git"
   },
-  "homepage": "https://github.com/tyroneross/blog-content-scraper#readme",
+  "homepage": "https://github.com/tyroneross/blog-scraper#readme",
   "bugs": {
-    "url": "https://github.com/tyroneross/blog-content-scraper/issues"
+    "url": "https://github.com/tyroneross/blog-scraper/issues"
   },
   "scripts": {
     "dev": "next dev",
