@@ -92,11 +92,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tyroneross/omniparse.git"
+    "url": "git+https://github.com/tyroneross/Omniparse.git"
   },
-  "homepage": "https://github.com/tyroneross/omniparse#readme",
+  "homepage": "https://github.com/tyroneross/Omniparse#readme",
   "bugs": {
-    "url": "https://github.com/tyroneross/omniparse/issues"
+    "url": "https://github.com/tyroneross/Omniparse/issues"
   },
   "scripts": {
     "dev": "next dev",
