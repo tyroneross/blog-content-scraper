@@ -239,10 +239,74 @@ function decodeXmlEntities(text: string): string {
 }
 
 // ============================================================================
-// Image Extraction
+// Image Extraction (with cell anchor mapping)
 // ============================================================================
 
-function extractImages(entries: ZipEntry[], drawingRels: Map<string, Map<string, string>>, warnings: string[]): ExcelImage[] {
+/** Convert 0-based column index to Excel letter (0→A, 25→Z, 26→AA) */
+function colToLetter(col: number): string {
+  let result = '';
+  let c = col;
+  while (c >= 0) {
+    result = String.fromCharCode((c % 26) + 65) + result;
+    c = Math.floor(c / 26) - 1;
+  }
+  return result;
+}
+
+/**
+ * Anchor info extracted from drawing XML: maps an rId to a cell position.
+ * The rId corresponds to a media file via the drawing's .rels file.
+ */
+interface ImageAnchor {
+  rId: string;
+  cellRef: string;     // e.g., "C2"
+  drawingFile: string; // e.g., "drawing1.xml"
+}
+
+/**
+ * Parse drawing XML to extract image anchors.
+ *
+ * XLSX drawing files use <xdr:twoCellAnchor> or <xdr:oneCellAnchor> to position images.
+ * Inside the anchor: <xdr:from><xdr:col>2</xdr:col><xdr:row>1</xdr:row></xdr:from>
+ * And: <xdr:pic>...<a:blip r:embed="rId1"/>...</xdr:pic>
+ */
+function parseDrawingAnchors(drawingXml: string): ImageAnchor[] {
+  const anchors: ImageAnchor[] = [];
+
+  // Match both twoCellAnchor and oneCellAnchor
+  const anchorRegex = /<xdr:(?:twoCellAnchor|oneCellAnchor)[^>]*>([\s\S]*?)<\/xdr:(?:twoCellAnchor|oneCellAnchor)>/gi;
+  let anchorMatch;
+
+  while ((anchorMatch = anchorRegex.exec(drawingXml)) !== null) {
+    const anchorXml = anchorMatch[1];
+
+    // Extract position from <xdr:from>
+    const fromMatch = anchorXml.match(/<xdr:from>([\s\S]*?)<\/xdr:from>/i);
+    if (!fromMatch) continue;
+
+    const colMatch = fromMatch[1].match(/<xdr:col>(\d+)<\/xdr:col>/i);
+    const rowMatch = fromMatch[1].match(/<xdr:row>(\d+)<\/xdr:row>/i);
+    if (!colMatch || !rowMatch) continue;
+
+    const col = parseInt(colMatch[1], 10);
+    const row = parseInt(rowMatch[1], 10);
+    const cellRef = colToLetter(col) + (row + 1); // 0-based → 1-based row
+
+    // Extract rId from <a:blip r:embed="rId1"/>
+    const blipMatch = anchorXml.match(/r:embed="([^"]*)"/i);
+    if (!blipMatch) continue;
+
+    anchors.push({ rId: blipMatch[1], cellRef, drawingFile: '' });
+  }
+
+  return anchors;
+}
+
+function extractImages(
+  entries: ZipEntry[],
+  imagePositions: Map<string, { sheetName: string; cellRef: string }>,
+  warnings: string[]
+): ExcelImage[] {
   const images: ExcelImage[] = [];
   const mediaEntries = entries.filter(e => /^xl\/media\//i.test(e.name));
 
@@ -251,11 +315,17 @@ function extractImages(entries: ZipEntry[], drawingRels: Map<string, Map<string,
       const rawData = decompressEntryRaw(entry);
       const fileName = entry.name.split('/').pop() || entry.name;
 
+      // Look up position from the pre-built mapping: media/image1.png → {sheetName, cellRef}
+      const mediaKey = 'media/' + fileName;
+      const position = imagePositions.get(mediaKey);
+
       images.push({
         fileName,
         contentType: detectImageContentType(fileName),
         base64: rawData.toString('base64'),
         size: rawData.length,
+        sheetName: position?.sheetName,
+        cellRef: position?.cellRef,
       });
     } catch (err) {
       warnings.push(`Image extraction failed for ${entry.name}: ${err instanceof Error ? err.message : String(err)}`);
@@ -680,31 +750,100 @@ function extractNamedRanges(entries: ZipEntry[], sheetNames: string[], warnings:
 }
 
 // ============================================================================
-// Drawing → Image Position Mapping
+// Drawing → Image Position Mapping (full chain resolution)
 // ============================================================================
 
-function buildDrawingRels(entries: ZipEntry[], warnings: string[]): Map<string, Map<string, string>> {
-  // Maps drawing file → (rId → media file target)
-  const result = new Map<string, Map<string, string>>();
+/**
+ * Build a complete mapping from media file paths to their sheet + cell positions.
+ *
+ * Chain: sheet.xml.rels → drawing.xml → twoCellAnchor(col,row) + r:embed=rId
+ *        drawing.xml.rels → rId → ../media/image1.png
+ *
+ * Returns: Map<"media/image1.png", {sheetName: "Sheet1", cellRef: "C2"}>
+ */
+function buildImagePositionMap(
+  entries: ZipEntry[],
+  sheetNames: string[],
+  warnings: string[]
+): Map<string, { sheetName: string; cellRef: string }> {
+  const result = new Map<string, { sheetName: string; cellRef: string }>();
 
+  // Step 1: Build sheet → drawing file mapping from sheet .rels
+  // e.g., "1" → "drawing1.xml"
+  const sheetToDrawing = new Map<string, string>();
+  const sheetRelsEntries = entries.filter(e => /^xl\/worksheets\/_rels\/sheet\d+\.xml\.rels$/i.test(e.name));
+
+  for (const entry of sheetRelsEntries) {
+    try {
+      const xml = decompressEntry(entry);
+      const sheetNum = entry.name.match(/sheet(\d+)\.xml\.rels/i)?.[1];
+      if (!sheetNum) continue;
+
+      // Find the drawing relationship
+      const drawingMatch = xml.match(/Target="[^"]*drawings\/(drawing\d+\.xml)"/i);
+      if (drawingMatch) {
+        sheetToDrawing.set(sheetNum, drawingMatch[1]);
+      }
+    } catch { /* best-effort */ }
+  }
+
+  // Step 2: Build drawing → (rId → media path) from drawing .rels
+  const drawingRelsMap = new Map<string, Map<string, string>>();
   const drawingRelsEntries = entries.filter(e => /^xl\/drawings\/_rels\/drawing\d+\.xml\.rels$/i.test(e.name));
 
   for (const entry of drawingRelsEntries) {
     try {
       const xml = decompressEntry(entry);
-      const drawingName = entry.name.match(/drawing(\d+)\.xml\.rels/i)?.[0] || '';
-      const relMap = new Map<string, string>();
+      const drawingFileName = entry.name.match(/(drawing\d+\.xml)\.rels/i)?.[1];
+      if (!drawingFileName) continue;
 
+      const relMap = new Map<string, string>();
       const relRegex = new RegExp('<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"[^>]*/>', 'gi');
       let match;
       while ((match = relRegex.exec(xml)) !== null) {
-        // Target is relative path like "../media/image1.png"
-        const target = match[2].replace(/^\.\.\//, '');
-        relMap.set(match[1], target);
+        // Normalize "../media/image1.png" → "media/image1.png"
+        relMap.set(match[1], match[2].replace(/^\.\.\//, ''));
+      }
+      drawingRelsMap.set(drawingFileName, relMap);
+    } catch { /* best-effort */ }
+  }
+
+  // Step 3: Parse each drawing XML for anchors, then resolve the full chain
+  const drawingEntries = entries.filter(e => /^xl\/drawings\/drawing\d+\.xml$/i.test(e.name));
+
+  for (const entry of drawingEntries) {
+    try {
+      const xml = decompressEntry(entry);
+      const drawingFileName = entry.name.split('/').pop() || '';
+      const anchors = parseDrawingAnchors(xml);
+
+      // Find which sheet this drawing belongs to
+      let sheetName: string | undefined;
+      for (const [sheetNum, drawingFile] of sheetToDrawing) {
+        if (drawingFile === drawingFileName) {
+          const idx = parseInt(sheetNum, 10) - 1;
+          sheetName = idx < sheetNames.length ? sheetNames[idx] : `Sheet${idx + 1}`;
+          break;
+        }
       }
 
-      result.set(drawingName, relMap);
-    } catch { /* best-effort */ }
+      // Get the rId → media path mapping for this drawing
+      const relMap = drawingRelsMap.get(drawingFileName);
+      if (!relMap) continue;
+
+      // Resolve each anchor: rId → media path, then store with position
+      for (const anchor of anchors) {
+        const mediaPath = relMap.get(anchor.rId);
+        if (mediaPath) {
+          result.set(mediaPath, {
+            sheetName: sheetName || 'Unknown',
+            cellRef: anchor.cellRef,
+          });
+        }
+      }
+    } catch (err) {
+      warnings.push(`Drawing parsing failed for ${entry.name}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   return result;
@@ -760,9 +899,9 @@ export function extractRichContent(buffer: Buffer): ExcelRichContent {
   });
 
   const sheetNames = extractSheetNames(entries);
-  const drawingRels = buildDrawingRels(entries, warnings);
+  const imagePositions = buildImagePositionMap(entries, sheetNames, warnings);
 
-  const images = extractImages(entries, drawingRels, warnings);
+  const images = extractImages(entries, imagePositions, warnings);
   const charts = extractCharts(entries, warnings);
   const comments = extractComments(entries, sheetNames, warnings);
   const mergedCells = extractMergedCells(entries, sheetNames, warnings);
