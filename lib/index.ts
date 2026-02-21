@@ -89,6 +89,15 @@ export { ContentExtractor } from './web-scrapers/content-extractor';
 // Page extractor (single web page support)
 export { extractPage, type PageContent, type PageExtractOptions } from './parsers/page-extractor';
 
+// Unified router (auto-detects input type and dispatches to correct parser)
+export {
+  parse,
+  detectInputType,
+  type InputType,
+  type ParseResult,
+  type OmniparseOptions
+} from './router';
+
 // ============================================================================
 // Configuration & Utilities
 // ============================================================================
