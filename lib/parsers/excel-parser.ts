@@ -311,27 +311,31 @@ function processSheet(
     range.e.r = Math.min(range.e.r, range.s.r + opts.maxRows - 1);
   }
 
-  // Convert to JSON with headers
-  const jsonOpts: XLSX.Sheet2JSONOpts = {
-    header: opts.headerRow ? undefined : 1,
-    defval: opts.includeEmpty ? '' : undefined,
-    raw: opts.rawValues,
-    range,
-  };
-
+  // Parse sheet data once as a 2D array
   const rawData: any[][] = XLSX.utils.sheet_to_json(worksheet, {
     header: 1,
     raw: opts.rawValues,
     range,
   }) as any[][];
 
-  // Extract headers
+  // Extract headers and build row objects from the single parse result
   let headers: string[] = [];
   let dataRows: Record<string, any>[] = [];
 
   if (opts.headerRow && rawData.length > 0) {
     headers = (rawData[0] || []).map((h: any) => String(h ?? ''));
-    dataRows = XLSX.utils.sheet_to_json(worksheet, jsonOpts) as Record<string, any>[];
+    // Build row objects from rawData[1..n] using extracted headers
+    for (let r = 1; r < rawData.length; r++) {
+      const row = rawData[r];
+      const obj: Record<string, any> = {};
+      for (let c = 0; c < headers.length; c++) {
+        const val = row[c];
+        if (val !== undefined || opts.includeEmpty) {
+          obj[headers[c]] = val ?? (opts.includeEmpty ? '' : undefined);
+        }
+      }
+      dataRows.push(obj);
+    }
   } else {
     headers = rawData.length > 0
       ? rawData[0].map((_: any, i: number) => `Column${i + 1}`)

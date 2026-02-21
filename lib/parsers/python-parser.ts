@@ -337,11 +337,21 @@ function extractFunctions(
 ): PythonFunction[] {
   const functions: PythonFunction[] = [];
 
+  // Find lines that are inside `if __name__` blocks (treat as top-level)
+  const mainBlockIndent = findMainBlockIndent(lines);
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
     // Match top-level function definitions (no indentation)
-    const defMatch = line.match(/^(async\s+)?def\s+(\w+)\s*\(/);
+    // Also match functions at exactly one indent level inside `if __name__` blocks
+    const indent = getIndentLevel(line);
+    const isTopLevel = indent === 0;
+    const isInMainBlock = mainBlockIndent !== null && indent === mainBlockIndent && isInsideMainBlock(lines, i, mainBlockIndent);
+
+    if (!isTopLevel && !isInMainBlock) continue;
+
+    const defMatch = line.match(/^\s*(async\s+)?def\s+(\w+)\s*\(/);
     if (!defMatch) continue;
 
     const isAsync = !!defMatch[1];
@@ -410,6 +420,51 @@ function extractFunctions(
   return functions;
 }
 
+/**
+ * Find the indent level used inside `if __name__ == "__main__":` blocks.
+ * Returns null if no such block exists.
+ */
+function findMainBlockIndent(lines: string[]): number | null {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].match(/^if\s+__name__\s*==\s*['"]__main__['"]\s*:/)) {
+      // Find the indent of the first non-blank line inside the block
+      for (let j = i + 1; j < lines.length; j++) {
+        const trimmed = lines[j].trim();
+        if (trimmed === '') continue;
+        const indent = getIndentLevel(lines[j]);
+        if (indent > 0) return indent;
+        break;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if a line at a given index is inside an `if __name__` block.
+ */
+function isInsideMainBlock(lines: string[], lineIndex: number, expectedIndent: number): boolean {
+  // Walk backward to find the enclosing `if __name__` statement
+  for (let i = lineIndex - 1; i >= 0; i--) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+
+    const indent = getIndentLevel(line);
+
+    // If we find a line at indent 0 that's the __name__ guard, we're inside it
+    if (indent === 0 && trimmed.match(/^if\s+__name__\s*==\s*['"]__main__['"]\s*:/)) {
+      return true;
+    }
+
+    // If we find any other line at indent 0 that's not blank/comment, we're not in a __name__ block
+    if (indent === 0 && !trimmed.startsWith('#')) {
+      return false;
+    }
+  }
+  return false;
+}
+
 function extractClasses(
   source: string,
   lines: string[],
@@ -473,15 +528,37 @@ function extractClassMethods(
 
   for (let i = 0; i < classBody.length; i++) {
     const line = classBody[i];
-    const methodMatch = line.match(/^(\s+)(async\s+)?def\s+(\w+)\s*\(([^)]*(?:\([^)]*\)[^)]*)*)\)\s*(?:->\s*([^:]+))?\s*:/);
+
+    // Match method definition start (may not have closing paren on same line)
+    const methodMatch = line.match(/^(\s+)(async\s+)?def\s+(\w+)\s*\(/);
     if (!methodMatch) continue;
 
     const isAsync = !!methodMatch[2];
     const name = methodMatch[3];
-    const paramsStr = methodMatch[4];
-    const returnType = methodMatch[5]?.trim();
-
     const absoluteLine = classStartLine + 1 + i + 1;
+
+    // Collect full signature (may span multiple lines)
+    let sigLines = line;
+    let sigEnd = i;
+    let parenDepth = 0;
+    for (const ch of line) {
+      if (ch === '(') parenDepth++;
+      if (ch === ')') parenDepth--;
+    }
+    while (parenDepth > 0 && sigEnd + 1 < classBody.length) {
+      sigEnd++;
+      sigLines += '\n' + classBody[sigEnd];
+      for (const ch of classBody[sigEnd]) {
+        if (ch === '(') parenDepth++;
+        if (ch === ')') parenDepth--;
+      }
+    }
+
+    // Parse parameters from the full signature
+    const sigMatch = sigLines.match(/def\s+\w+\s*\(([\s\S]*?)\)\s*(?:->\s*([^:]+))?\s*:/);
+    const paramsStr = sigMatch ? sigMatch[1].replace(/\n/g, ' ') : '';
+    const returnType = sigMatch?.[2]?.trim();
+
     const parameters = parseParameters(paramsStr);
 
     // Find decorators above this method
@@ -498,8 +575,9 @@ function extractClassMethods(
       ? lines.slice(absoluteLine - 1, methodEndLine).join('\n')
       : '';
 
-    // Extract docstring
-    const docstring = extractBlockDocstring(lines, absoluteLine);
+    // Extract docstring (after the signature ends)
+    const bodyStartLine = classStartLine + 1 + sigEnd + 1 + 1;
+    const docstring = extractBlockDocstring(lines, bodyStartLine);
 
     const isGenerator = methodSource.includes('yield ') || methodSource.includes('yield\n');
 
@@ -561,11 +639,16 @@ function extractVariables(lines: string[], maxValueLength: number): PythonVariab
     if (line.trim().startsWith('#') || line.trim() === '') continue;
     if (line.match(/^(def |async def |class |import |from |@|if |for |while |with |try |except |finally )/)) continue;
 
-    // Match simple assignments: NAME = VALUE or NAME: TYPE = VALUE
-    const varMatch = line.match(/^([A-Z_][A-Z0-9_]*)\s*(?::\s*([^=]+?))?\s*=\s*(.+)$/);
+    // Match assignments: name = value or name: type = value
+    // Captures SCREAMING_CASE, snake_case, PascalCase, and camelCase identifiers
+    const varMatch = line.match(/^([a-zA-Z_]\w*)\s*(?::\s*([^=]+?))?\s*=\s*(.+)$/);
     if (varMatch) {
+      // Skip dunder variables like __all__ and __version__ that are metadata
+      const vname = varMatch[1];
+      if (vname.startsWith('__') && vname.endsWith('__')) continue;
+
       variables.push({
-        name: varMatch[1],
+        name: vname,
         type: varMatch[2]?.trim() || undefined,
         value: varMatch[3].trim().substring(0, maxValueLength),
         line: i + 1,

@@ -184,7 +184,8 @@ export async function parsePptxBuffer(
   fileName: string = 'presentation.pptx',
   options: PptxParseOptions = {}
 ): Promise<PptxParseResult> {
-  const tmpPath = path.join(require('os').tmpdir(), `pptx-parse-${Date.now()}-${fileName}`);
+  const crypto = require('crypto');
+  const tmpPath = path.join(require('os').tmpdir(), `pptx-parse-${crypto.randomUUID()}.pptx`);
 
   try {
     fs.writeFileSync(tmpPath, buffer);
@@ -205,66 +206,97 @@ export async function parsePptxBuffer(
  *
  * PPTX files contain notes in ppt/notesSlides/notesSlide{N}.xml
  * Each notes file references a slide and contains text in a:t elements.
+ *
+ * Uses pure JS ZIP parsing (no shell commands) for security and portability.
  */
 async function extractNotesFromPptx(filePath: string): Promise<Map<number, string>> {
   const notes = new Map<number, string>();
 
   try {
-    // Read the PPTX as a ZIP using the xlsx library's zip utils
-    // or parse manually using the unzipper that node-pptx-parser uses
-    const AdmZip = require('adm-zip') || null;
+    const zlib = require('zlib');
+    const fileBuffer = fs.readFileSync(filePath);
+    const entries = readZipEntries(fileBuffer);
 
-    // Try using built-in unzip approach via fs
-    const { execSync } = require('child_process');
-
-    // Create temp dir for extraction
-    const tmpDir = path.join(require('os').tmpdir(), `pptx-notes-${Date.now()}`);
-    fs.mkdirSync(tmpDir, { recursive: true });
-
-    try {
-      // Extract only notesSlides from the PPTX
-      execSync(`unzip -qo "${filePath}" "ppt/notesSlides/*" -d "${tmpDir}" 2>/dev/null || true`, {
-        timeout: 10000,
+    // Find notesSlide entries
+    const noteEntries = entries
+      .filter(e => /^ppt\/notesSlides\/notesSlide\d+\.xml$/i.test(e.name))
+      .sort((a, b) => {
+        const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
+        const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+        return numA - numB;
       });
 
-      const notesDir = path.join(tmpDir, 'ppt', 'notesSlides');
-      if (fs.existsSync(notesDir)) {
-        const noteFiles = fs.readdirSync(notesDir)
-          .filter(f => f.match(/^notesSlide\d+\.xml$/))
-          .sort((a, b) => {
-            const numA = parseInt(a.match(/\d+/)?.[0] || '0');
-            const numB = parseInt(b.match(/\d+/)?.[0] || '0');
-            return numA - numB;
-          });
+    for (const entry of noteEntries) {
+      const slideNum = parseInt(entry.name.match(/\d+/)?.[0] || '0') - 1;
 
-        for (const noteFile of noteFiles) {
-          const slideNum = parseInt(noteFile.match(/\d+/)?.[0] || '0') - 1;
-          const xml = fs.readFileSync(path.join(notesDir, noteFile), 'utf-8');
+      let xml: string;
+      if (entry.compressionMethod === 8) {
+        // Deflate compressed
+        xml = zlib.inflateRawSync(entry.data).toString('utf-8');
+      } else {
+        // Stored (no compression)
+        xml = entry.data.toString('utf-8');
+      }
 
-          // Extract text from a:t elements
-          const textMatches = xml.match(/<a:t>([^<]*)<\/a:t>/g);
-          if (textMatches) {
-            const noteText = textMatches
-              .map(m => m.replace(/<\/?a:t>/g, ''))
-              .join(' ')
-              .trim();
+      // Extract text from a:t elements
+      const textMatches = xml.match(/<a:t>([^<]*)<\/a:t>/g);
+      if (textMatches) {
+        const noteText = textMatches
+          .map(m => m.replace(/<\/?a:t>/g, ''))
+          .join(' ')
+          .trim();
 
-            // Filter out placeholder text
-            if (noteText && noteText.length > 0 && !noteText.match(/^slide \d+$/i)) {
-              notes.set(slideNum, noteText);
-            }
-          }
+        // Filter out placeholder text
+        if (noteText && noteText.length > 0 && !noteText.match(/^slide \d+$/i)) {
+          notes.set(slideNum, noteText);
         }
       }
-    } finally {
-      // Cleanup temp directory
-      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   } catch {
     // Notes extraction is best-effort
   }
 
   return notes;
+}
+
+/**
+ * Minimal ZIP reader - reads local file headers and extracts entry data.
+ * Only what we need: file name and raw/deflated data for each entry.
+ */
+interface ZipEntry {
+  name: string;
+  compressionMethod: number;
+  data: Buffer;
+}
+
+function readZipEntries(buffer: Buffer): ZipEntry[] {
+  const entries: ZipEntry[] = [];
+  let offset = 0;
+
+  while (offset < buffer.length - 4) {
+    // Look for local file header signature: PK\x03\x04
+    if (buffer[offset] !== 0x50 || buffer[offset + 1] !== 0x4b ||
+        buffer[offset + 2] !== 0x03 || buffer[offset + 3] !== 0x04) {
+      break; // No more local file headers
+    }
+
+    const compressionMethod = buffer.readUInt16LE(offset + 8);
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const fileNameLength = buffer.readUInt16LE(offset + 26);
+    const extraFieldLength = buffer.readUInt16LE(offset + 28);
+
+    const nameStart = offset + 30;
+    const name = buffer.toString('utf-8', nameStart, nameStart + fileNameLength);
+
+    const dataStart = nameStart + fileNameLength + extraFieldLength;
+    const data = buffer.subarray(dataStart, dataStart + compressedSize);
+
+    entries.push({ name, compressionMethod, data });
+
+    offset = dataStart + compressedSize;
+  }
+
+  return entries;
 }
 
 function generatePptxMarkdown(fileName: string, slides: PptxSlide[]): string {

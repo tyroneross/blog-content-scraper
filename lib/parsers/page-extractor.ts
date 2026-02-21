@@ -274,12 +274,28 @@ export async function extractPage(
 // --- Internal helpers ---
 
 function isPrivateOrLocal(hostname: string): boolean {
-  const privateRanges = [
+  // Normalize hostname
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+
+  // Exact matches
+  if (h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '0.0.0.0') return true;
+
+  // IPv4 private ranges
+  const privateIPv4 = [
     /^127\./, /^10\./, /^172\.(1[6-9]|2[0-9]|3[01])\./,
-    /^192\.168\./, /^169\.254\./, /^::1$/, /^fe80:/, /^fc00:/, /^fd00:/,
+    /^192\.168\./, /^169\.254\./, /^0\./,
   ];
-  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
-  return privateRanges.some(r => r.test(hostname));
+  if (privateIPv4.some(r => r.test(h))) return true;
+
+  // IPv6 private ranges
+  const privateIPv6 = [/^fe80:/i, /^fc00:/i, /^fd00:/i, /^::ffff:127\./i, /^::ffff:10\./i,
+    /^::ffff:192\.168\./i, /^::ffff:172\.(1[6-9]|2[0-9]|3[01])\./i, /^::ffff:0\./i];
+  if (privateIPv6.some(r => r.test(h))) return true;
+
+  // Block .local, .internal, and numeric-only hostnames that could be IPs
+  if (h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.localhost')) return true;
+
+  return false;
 }
 
 async function fetchPage(
@@ -337,8 +353,6 @@ function extractWithReadability(
     const dom = new JSDOM(html, {
       url,
       virtualConsole,
-      runScripts: 'outside-only',
-      resources: 'usable',
     });
 
     const reader = new Readability(dom.window.document);
