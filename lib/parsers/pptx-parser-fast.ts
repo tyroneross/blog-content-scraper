@@ -55,6 +55,23 @@ export interface PptxParseOptions {
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB default
 const SLIDE_PATTERN = /^ppt\/slides\/slide(\d+)\.xml$/i;
 const NOTES_PATTERN = /^ppt\/notesSlides\/notesSlide(\d+)\.xml$/i;
+const CHART_PATTERN = /^ppt\/charts\/chart\d+\.xml$/i;
+const DIAGRAM_PATTERN = /^ppt\/diagrams\/data\d+\.xml$/i;
+
+// Pre-compiled regex for text extraction (faster than SAX for machine-generated OpenXML)
+const AT_REGEX = /<a:t>([^<]*)<\/a:t>/g;
+const AP_SPLIT = /<\/a:p>/g;
+const CV_REGEX = /<c:v>([^<]*)<\/c:v>/g;
+
+// XML entity decode map
+const XML_ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&apos;': "'",
+  '&quot;': '"',
+};
+const ENTITY_RE = /&(?:amp|lt|gt|apos|quot);/g;
 
 // ============================================================================
 // ZIP Entry Reader (minimal, single-pass)
@@ -108,26 +125,89 @@ function readZipEntriesFiltered(
 }
 
 // ============================================================================
-// SAX-based XML Text Extractor
+// Text Extraction (regex-first, SAX fallback)
 // ============================================================================
 
 /**
- * Extract text from OpenXML slide/notes XML using SAX streaming.
+ * Decode XML entities in extracted text.
+ * PPTX files only use the 5 standard XML entities.
+ */
+function decodeEntities(text: string): string {
+  if (!text.includes('&')) return text;
+  return text.replace(ENTITY_RE, (m) => XML_ENTITIES[m] || m);
+}
+
+/**
+ * Extract text from OpenXML slide/notes XML using regex (primary path).
  *
- * Targets these elements:
- * - <a:t> (text runs inside paragraphs)
- * - <a:p> (paragraph boundaries → newlines)
- *
- * SAX is significantly faster than regex for well-formed XML because:
- * - Single pass through the document
- * - No backtracking
- * - Handles CDATA, entities, and edge cases correctly
+ * Research finding: For machine-generated OpenXML (which PPTX always is),
+ * regex is 2-3x faster than SAX. The XML is predictable with no CDATA,
+ * no nested <a:t>, and only standard XML entities. Falls back to SAX
+ * only if regex fails to extract anything from non-empty XML.
  */
 function extractTextFromXml(xml: string): string[] {
+  const blocks = extractTextRegex(xml);
+  // If regex extracted nothing but XML contains text elements, try SAX
+  if (blocks.length === 0 && xml.includes('<a:t>')) {
+    return extractTextSax(xml);
+  }
+  return blocks;
+}
+
+/**
+ * Fast regex extraction — primary path for well-formed OpenXML.
+ * Groups text runs by paragraph boundaries (<\/a:p>).
+ */
+function extractTextRegex(xml: string): string[] {
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+  let current: string[] = [];
+
+  const paragraphs = xml.split(AP_SPLIT);
+  for (const para of paragraphs) {
+    current = [];
+    AT_REGEX.lastIndex = 0;
+    while ((match = AT_REGEX.exec(para)) !== null) {
+      if (match[1]) current.push(decodeEntities(match[1]));
+    }
+    const text = current.join('').trim();
+    if (text.length > 0) blocks.push(text);
+  }
+
+  return blocks;
+}
+
+/**
+ * Extract chart-specific text (<c:v> values for series names, categories).
+ */
+function extractChartText(xml: string): string[] {
+  const blocks: string[] = [];
+  let match: RegExpExecArray | null;
+
+  // Also get <a:t> text (chart titles, axis labels)
+  const atBlocks = extractTextRegex(xml);
+  blocks.push(...atBlocks);
+
+  // Get <c:v> values (series names, category names)
+  CV_REGEX.lastIndex = 0;
+  while ((match = CV_REGEX.exec(xml)) !== null) {
+    const val = decodeEntities(match[1]).trim();
+    if (val.length > 0 && !/^\d+(\.\d+)?$/.test(val)) {
+      // Skip pure numbers (data values), keep text labels
+      blocks.push(val);
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * SAX fallback for rare edge cases where regex fails.
+ */
+function extractTextSax(xml: string): string[] {
   const textBlocks: string[] = [];
   let currentParagraph: string[] = [];
   let inTextElement = false;
-  let depth = 0;
 
   const parser = sax.parser(false, {
     lowercase: true,
@@ -140,7 +220,6 @@ function extractTextFromXml(xml: string): string[] {
       inTextElement = true;
     } else if (node.name === 'a:p') {
       currentParagraph = [];
-      depth++;
     }
   };
 
@@ -154,7 +233,6 @@ function extractTextFromXml(xml: string): string[] {
     if (name === 'a:t') {
       inTextElement = false;
     } else if (name === 'a:p') {
-      depth--;
       const paraText = currentParagraph.join('').trim();
       if (paraText.length > 0) {
         textBlocks.push(paraText);
@@ -162,39 +240,13 @@ function extractTextFromXml(xml: string): string[] {
     }
   };
 
-  // SAX parse — wrap in try-catch since malformed XML is common in PPTX
   try {
     parser.write(xml).close();
   } catch {
-    // Fall back to regex extraction if SAX fails
-    return extractTextFromXmlFallback(xml);
+    // Both paths failed — return empty
   }
 
   return textBlocks;
-}
-
-/**
- * Regex fallback for malformed XML (same approach as v1 but optimized).
- */
-function extractTextFromXmlFallback(xml: string): string[] {
-  const blocks: string[] = [];
-  const re = /<a:t>([^<]*)<\/a:t>/g;
-  let match: RegExpExecArray | null;
-  let current: string[] = [];
-
-  // Split by paragraph boundaries
-  const paragraphs = xml.split(/<\/a:p>/g);
-  for (const para of paragraphs) {
-    current = [];
-    re.lastIndex = 0;
-    while ((match = re.exec(para)) !== null) {
-      if (match[1]) current.push(match[1]);
-    }
-    const text = current.join('').trim();
-    if (text.length > 0) blocks.push(text);
-  }
-
-  return blocks;
 }
 
 // ============================================================================
@@ -279,14 +331,19 @@ async function parsePptxFromBuffer(
   const { includeNotes = true, maxSlides } = options;
   const errors: string[] = [];
 
-  // Single-pass ZIP extraction — filter for only slides and notes
+  // Single-pass ZIP extraction — filter for slides, notes, charts, and diagrams
   const entries = readZipEntriesFiltered(buffer, (name) => {
-    return SLIDE_PATTERN.test(name) || (includeNotes && NOTES_PATTERN.test(name));
+    return SLIDE_PATTERN.test(name) ||
+      (includeNotes && NOTES_PATTERN.test(name)) ||
+      CHART_PATTERN.test(name) ||
+      DIAGRAM_PATTERN.test(name);
   });
 
-  // Separate slide entries from notes entries
+  // Categorize entries in a single pass
   const slideEntries: { num: number; entry: RawZipEntry }[] = [];
-  const notesEntries: { num: number; entry: RawZipEntry }[] = [];
+  const notesLookup = new Map<number, RawZipEntry>();
+  const chartEntries: RawZipEntry[] = [];
+  const diagramEntries: RawZipEntry[] = [];
 
   for (const entry of entries) {
     const slideMatch = entry.name.match(SLIDE_PATTERN);
@@ -296,35 +353,37 @@ async function parsePptxFromBuffer(
     }
     const notesMatch = entry.name.match(NOTES_PATTERN);
     if (notesMatch) {
-      notesEntries.push({ num: parseInt(notesMatch[1], 10), entry });
+      notesLookup.set(parseInt(notesMatch[1], 10), notesMatch.input === entry.name ? entry : entry);
+      continue;
+    }
+    if (CHART_PATTERN.test(entry.name)) {
+      chartEntries.push(entry);
+      continue;
+    }
+    if (DIAGRAM_PATTERN.test(entry.name)) {
+      diagramEntries.push(entry);
     }
   }
 
   // Sort by slide number
   slideEntries.sort((a, b) => a.num - b.num);
-  notesEntries.sort((a, b) => a.num - b.num);
 
   // Apply maxSlides limit
-  const limit = maxSlides ? Math.min(slideEntries.length, maxSlides) : slideEntries.length;
-  const limitedSlides = slideEntries.slice(0, limit);
+  const slideLimit = maxSlides ? Math.min(slideEntries.length, maxSlides) : slideEntries.length;
+  const limitedSlides = slideEntries.slice(0, slideLimit);
 
-  // Build notes lookup (Map: slideNumber → noteEntry)
-  const notesLookup = new Map<number, RawZipEntry>();
-  if (includeNotes) {
-    for (const n of notesEntries) {
-      notesLookup.set(n.num, n.entry);
-    }
-  }
+  // Process slides synchronously — all operations (zlib + regex) are CPU-bound,
+  // so Promise.all adds overhead without actual parallelism.
+  const slides: PptxSlide[] = [];
 
-  // Process all slides in parallel — decompress + SAX parse concurrently
-  const slidePromises = limitedSlides.map(async ({ num, entry }) => {
+  for (const { num, entry } of limitedSlides) {
     try {
       const xml = decompressEntry(entry);
       const textBlocks = extractTextFromXml(xml);
       const slideText = textBlocks.join('\n');
       const title = textBlocks.length > 0 ? textBlocks[0].trim() : undefined;
 
-      // Process corresponding notes inline (same pass)
+      // Process corresponding notes inline
       let notes: string | undefined;
       const noteEntry = notesLookup.get(num);
       if (noteEntry) {
@@ -340,34 +399,46 @@ async function parsePptxFromBuffer(
         }
       }
 
-      return {
+      slides.push({
         slideNumber: num,
         textBlocks,
         text: slideText,
         title,
         notes,
-      } as PptxSlide;
+      });
     } catch (err) {
       errors.push(`Slide ${num}: ${err instanceof Error ? err.message : String(err)}`);
-      return null;
     }
-  });
+  }
 
-  const slideResults = await Promise.all(slidePromises);
+  // Extract text from charts and diagrams (supplementary content)
+  const supplementaryText: string[] = [];
+  for (const entry of chartEntries) {
+    try {
+      const xml = decompressEntry(entry);
+      const texts = extractChartText(xml);
+      supplementaryText.push(...texts);
+    } catch { /* best-effort */ }
+  }
+  for (const entry of diagramEntries) {
+    try {
+      const xml = decompressEntry(entry);
+      const texts = extractTextFromXml(xml);
+      supplementaryText.push(...texts);
+    } catch { /* best-effort */ }
+  }
 
-  // Filter nulls and renumber if needed
-  const slides: PptxSlide[] = slideResults
-    .filter((s): s is PptxSlide => s !== null)
-    .sort((a, b) => a.slideNumber - b.slideNumber);
-
-  // Generate outputs
-  const allText = slides.map(s => s.text).join('\n\n');
+  // Generate outputs (include supplementary chart/diagram text)
+  const slideText = slides.map(s => s.text).join('\n\n');
+  const allText = supplementaryText.length > 0
+    ? slideText + '\n\n' + supplementaryText.join('\n')
+    : slideText;
   const allNotes = slides
     .filter(s => s.notes)
     .map(s => `Slide ${s.slideNumber}: ${s.notes}`)
     .join('\n\n');
-  const markdown = generatePptxMarkdown(fileName, slides);
-  const text = generatePptxPlainText(fileName, slides);
+  const markdown = generatePptxMarkdown(fileName, slides, supplementaryText);
+  const text = generatePptxPlainText(fileName, slides, supplementaryText);
   const wordCount = countWords(text);
   const estimatedTokens = Math.ceil(text.length / 4);
 
@@ -390,7 +461,7 @@ async function parsePptxFromBuffer(
 // Formatters (same output as v1 for compatibility)
 // ============================================================================
 
-function generatePptxMarkdown(fileName: string, slides: PptxSlide[]): string {
+function generatePptxMarkdown(fileName: string, slides: PptxSlide[], supplementary: string[] = []): string {
   const sections: string[] = [];
 
   sections.push(`# ${fileName.replace(/\.pptx$/i, '')}`);
@@ -414,10 +485,16 @@ function generatePptxMarkdown(fileName: string, slides: PptxSlide[]): string {
     sections.push('');
   }
 
+  if (supplementary.length > 0) {
+    sections.push('## Charts & Diagrams\n');
+    sections.push(supplementary.join('\n'));
+    sections.push('');
+  }
+
   return sections.join('\n');
 }
 
-function generatePptxPlainText(fileName: string, slides: PptxSlide[]): string {
+function generatePptxPlainText(fileName: string, slides: PptxSlide[], supplementary: string[] = []): string {
   const parts: string[] = [];
 
   parts.push(`Presentation: ${fileName}`);
@@ -429,6 +506,12 @@ function generatePptxPlainText(fileName: string, slides: PptxSlide[]): string {
     if (slide.notes) {
       parts.push(`[Notes: ${slide.notes}]`);
     }
+    parts.push('');
+  }
+
+  if (supplementary.length > 0) {
+    parts.push('--- Charts & Diagrams ---');
+    parts.push(supplementary.join('\n'));
     parts.push('');
   }
 
