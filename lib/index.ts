@@ -86,6 +86,9 @@ export { globalSitemapParser, type SitemapEntry } from './web-scrapers/sitemap-p
 export { HTMLScraper, type ExtractedArticle, type ScrapingConfig } from './web-scrapers/html-scraper';
 export { ContentExtractor } from './web-scrapers/content-extractor';
 
+// Page extractor (single web page support)
+export { extractPage, type PageContent, type PageExtractOptions } from './parsers/page-extractor';
+
 // ============================================================================
 // Configuration & Utilities
 // ============================================================================
