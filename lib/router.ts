@@ -65,6 +65,10 @@ export interface OmniparseOptions {
   includeNotes?: boolean;
   /** For directories: process recursively (default: false) */
   recursive?: boolean;
+  /** Concurrency for parallel document parsing in directories (default: 4) */
+  concurrency?: number;
+  /** Progress callback for batch/directory operations */
+  onProgress?: (completed: number, total: number) => void;
   /** Suppress console output */
   quiet?: boolean;
 }
@@ -198,6 +202,65 @@ export async function parse(
   }
 }
 
+/**
+ * Parse multiple inputs in parallel with concurrency control.
+ *
+ * Accepts any mix of file paths, URLs, and HTML strings.
+ * Each input is routed to the correct parser independently.
+ *
+ * @param inputs - Array of file paths, URLs, or HTML strings
+ * @param options - Parsing options (concurrency defaults to 4)
+ * @returns Array of results in the same order as inputs
+ *
+ * @example
+ * ```typescript
+ * import { parseMultiple } from '@tyroneross/omniscraper';
+ *
+ * const results = await parseMultiple([
+ *   './report.xlsx',
+ *   './deck.pptx',
+ *   './script.py',
+ *   'https://example.com/blog/post',
+ * ], { concurrency: 4 });
+ * ```
+ */
+export async function parseMultiple(
+  inputs: string[],
+  options: OmniparseOptions = {}
+): Promise<ParseResult[]> {
+  const concurrency = options.concurrency ?? 4;
+  const { default: pLimit } = await import('p-limit');
+  const limit = pLimit(concurrency);
+  let completed = 0;
+
+  const promises = inputs.map((input, idx) =>
+    limit(async (): Promise<{ idx: number; results: ParseResult[] }> => {
+      try {
+        const result = await parse(input, options);
+        const results = Array.isArray(result) ? result : [result];
+        return { idx, results };
+      } catch (error) {
+        return {
+          idx,
+          results: [createErrorResult(
+            input,
+            detectInputType(input),
+            error instanceof Error ? error.message : String(error),
+            Date.now()
+          )]
+        };
+      } finally {
+        completed++;
+        options.onProgress?.(completed, inputs.length);
+      }
+    })
+  );
+
+  const settled = await Promise.all(promises);
+  // Flatten results preserving input order
+  return settled.sort((a, b) => a.idx - b.idx).flatMap(r => r.results);
+}
+
 // ============================================================================
 // Per-Type Parsers
 // ============================================================================
@@ -267,7 +330,7 @@ async function parseUrl(url: string, options: OmniparseOptions): Promise<ParseRe
 
 async function parseExcel(filePath: string, options: OmniparseOptions): Promise<ParseResult> {
   const startTime = Date.now();
-  const { parseExcelFile } = await import('./parsers/excel-parser');
+  const { parseExcelFile } = await import('./parsers/excel-parser-fast');
 
   const result = parseExcelFile(filePath, {
     sheets: options.sheets,
@@ -300,7 +363,7 @@ async function parseExcel(filePath: string, options: OmniparseOptions): Promise<
 }
 
 async function parsePptx(filePath: string, options: OmniparseOptions): Promise<ParseResult> {
-  const { parsePptxFile } = await import('./parsers/pptx-parser');
+  const { parsePptxFile } = await import('./parsers/pptx-parser-fast');
 
   const result = await parsePptxFile(filePath, {
     includeNotes: options.includeNotes ?? true,
@@ -409,6 +472,14 @@ async function parseHtmlString(html: string): Promise<ParseResult> {
   };
 }
 
+/**
+ * Parse all supported files in a directory — with parallel processing.
+ *
+ * Uses p-limit for concurrency control. Default concurrency: 4.
+ * Files are parsed in parallel up to the concurrency limit, which is
+ * significantly faster than sequential processing for directories with
+ * many files (especially mixed Excel + PPTX + Python).
+ */
 async function parseDirectory(
   dirPath: string,
   options: OmniparseOptions
@@ -426,27 +497,32 @@ async function parseDirectory(
     throw new Error(`No supported files found in: ${dirPath}`);
   }
 
-  const results: ParseResult[] = [];
+  const concurrency = options.concurrency ?? 4;
+  const { default: pLimit } = await import('p-limit');
+  const limit = pLimit(concurrency);
+  let completed = 0;
 
-  for (const file of files) {
-    try {
-      const result = await parse(file, options);
-      if (Array.isArray(result)) {
-        results.push(...result);
-      } else {
-        results.push(result);
+  const promises = files.map(file =>
+    limit(async (): Promise<ParseResult[]> => {
+      try {
+        const result = await parse(file, options);
+        return Array.isArray(result) ? result : [result];
+      } catch (error) {
+        return [createErrorResult(
+          file,
+          detectInputType(file),
+          error instanceof Error ? error.message : String(error),
+          Date.now()
+        )];
+      } finally {
+        completed++;
+        options.onProgress?.(completed, files.length);
       }
-    } catch (error) {
-      results.push(createErrorResult(
-        file,
-        detectInputType(file),
-        error instanceof Error ? error.message : String(error),
-        Date.now()
-      ));
-    }
-  }
+    })
+  );
 
-  return results;
+  const nestedResults = await Promise.all(promises);
+  return nestedResults.flat();
 }
 
 // ============================================================================

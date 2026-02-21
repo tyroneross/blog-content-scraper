@@ -92,6 +92,7 @@ export { extractPage, type PageContent, type PageExtractOptions } from './parser
 // Unified router (auto-detects input type and dispatches to correct parser)
 export {
   parse,
+  parseMultiple,
   detectInputType,
   type InputType,
   type ParseResult,

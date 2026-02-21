@@ -41,7 +41,7 @@ export {
   type PageExtractOptions,
 } from './page-extractor';
 
-// Excel parsing
+// Excel parsing (v2 fast parser — single-pass, no duplicate sheet_to_csv)
 export {
   parseExcelFile,
   parseExcelBuffer,
@@ -50,16 +50,16 @@ export {
   type ExcelSheet,
   type ExcelProperties,
   type ExcelParseOptions,
-} from './excel-parser';
+} from './excel-parser-fast';
 
-// PowerPoint parsing
+// PowerPoint parsing (v2 fast parser — single-pass ZIP+SAX, parallel slides)
 export {
   parsePptxFile,
   parsePptxBuffer,
   type PptxParseResult,
   type PptxSlide,
   type PptxParseOptions,
-} from './pptx-parser';
+} from './pptx-parser-fast';
 
 // Python parsing
 export {
