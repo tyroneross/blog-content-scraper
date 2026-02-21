@@ -61,6 +61,13 @@ export interface OmniparseOptions {
   articleMode?: boolean;
   /** For Excel: specific sheet names to extract */
   sheets?: string[];
+  /**
+   * For Excel: parse mode
+   * - 'text': Cell data only. Fast. No rich content extraction. (default)
+   * - 'full': Full structure — images, charts, comments, merged cells, hyperlinks.
+   *           Also generates LLM chunks and structural summary.
+   */
+  parseMode?: 'text' | 'full';
   /** For PPTX: include speaker notes (default: true) */
   includeNotes?: boolean;
   /** For directories: process recursively (default: false) */
@@ -334,7 +341,55 @@ async function parseExcel(filePath: string, options: OmniparseOptions): Promise<
 
   const result = parseExcelFile(filePath, {
     sheets: options.sheets,
+    parseMode: options.parseMode,
   });
+
+  const metadata: Record<string, any> = {
+    format: result.format,
+    parseMode: result.parseMode,
+    sheetCount: result.sheetCount,
+    totalRows: result.totalRows,
+    totalCells: result.totalCells,
+    sheets: result.sheets.map(s => ({
+      name: s.name,
+      headers: s.headers,
+      rowCount: s.rowCount,
+      columnCount: s.columnCount,
+    })),
+    properties: result.properties,
+  };
+
+  // Full mode: include rich content metadata
+  if (result.structureSummary) {
+    metadata.structureSummary = result.structureSummary;
+  }
+  if (result.chunks) {
+    metadata.chunks = result.chunks;
+  }
+  if (result.richContent) {
+    metadata.richContent = {
+      imageCount: result.richContent.images.length,
+      chartCount: result.richContent.charts.length,
+      commentCount: result.richContent.comments.length,
+      hyperlinkCount: result.richContent.hyperlinks.length,
+      mergedCellCount: result.richContent.mergedCells.length,
+      namedRangeCount: result.richContent.namedRanges.length,
+      // Include chart data (for replication) but not raw image base64 (too large for metadata)
+      charts: result.richContent.charts,
+      comments: result.richContent.comments,
+      hyperlinks: result.richContent.hyperlinks,
+      mergedCells: result.richContent.mergedCells,
+      namedRanges: result.richContent.namedRanges,
+      // Image metadata without base64 (access images via result.richContent.images directly)
+      images: result.richContent.images.map(i => ({
+        fileName: i.fileName,
+        contentType: i.contentType,
+        size: i.size,
+        sheetName: i.sheetName,
+        cellRef: i.cellRef,
+      })),
+    };
+  }
 
   return {
     input: filePath,
@@ -345,19 +400,7 @@ async function parseExcel(filePath: string, options: OmniparseOptions): Promise<
     wordCount: result.wordCount,
     estimatedTokens: result.estimatedTokens,
     parseTime: result.parseTime,
-    metadata: {
-      format: result.format,
-      sheetCount: result.sheetCount,
-      totalRows: result.totalRows,
-      totalCells: result.totalCells,
-      sheets: result.sheets.map(s => ({
-        name: s.name,
-        headers: s.headers,
-        rowCount: s.rowCount,
-        columnCount: s.columnCount,
-      })),
-      properties: result.properties,
-    },
+    metadata,
     errors: result.errors,
   };
 }
