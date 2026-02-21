@@ -132,7 +132,7 @@ async function getXLSX(): Promise<any> {
  *
  * @example
  * ```typescript
- * import { parseExcelFile } from '@tyroneross/blog-scraper/excel';
+ * import { parseExcelFile } from '@tyroneross/omniscraper/excel';
  *
  * const result = await parseExcelFile('./data/report.xlsx');
  *
@@ -180,7 +180,7 @@ export async function parseExcelFile(
  *
  * @example
  * ```typescript
- * import { parseExcelBuffer } from '@tyroneross/blog-scraper/excel';
+ * import { parseExcelBuffer } from '@tyroneross/omniscraper/excel';
  *
  * const response = await fetch('https://example.com/data.xlsx');
  * const buffer = Buffer.from(await response.arrayBuffer());
@@ -219,7 +219,7 @@ export async function parseExcelBuffer(
  *
  * @example
  * ```typescript
- * import { parseExcelUrl } from '@tyroneross/blog-scraper/excel';
+ * import { parseExcelUrl } from '@tyroneross/omniscraper/excel';
  *
  * const result = await parseExcelUrl('https://example.com/data.xlsx');
  * console.log(result.sheets[0].rows);
@@ -259,7 +259,7 @@ export async function parseExcelUrl(
  *
  * @example
  * ```typescript
- * import { parseExcelFile, formatSheetForLLM } from '@tyroneross/blog-scraper/excel';
+ * import { parseExcelFile, formatSheetForLLM } from '@tyroneross/omniscraper/excel';
  *
  * const result = await parseExcelFile('./data.xlsx');
  * const formatted = formatSheetForLLM(result.sheets[0]);

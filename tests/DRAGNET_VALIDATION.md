@@ -234,7 +234,7 @@ Dragnet ground truth files (`*.html.corrected.txt`) contain:
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd blog-content-scraper
+cd omniscraper
 
 # Install dependencies
 npm install

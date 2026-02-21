@@ -1,13 +1,13 @@
 {
-  "name": "blog-scraper",
+  "name": "omniscraper",
   "version": "0.4.2",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {
     "name": "Tyrone Ross",
     "url": "https://github.com/tyroneross"
   },
-  "homepage": "https://github.com/tyroneross/blog-content-scraper",
-  "repository": "https://github.com/tyroneross/blog-content-scraper",
+  "homepage": "https://github.com/tyroneross/omniscraper",
+  "repository": "https://github.com/tyroneross/omniscraper",
   "license": "MIT",
   "keywords": ["scraper", "web", "blog", "rss", "content", "llm", "articles"],
   "commands": "commands/",

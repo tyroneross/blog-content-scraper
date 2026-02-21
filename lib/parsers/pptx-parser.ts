@@ -72,7 +72,7 @@ export interface PptxParseOptions {
  *
  * @example
  * ```typescript
- * import { parsePptxFile } from '@tyroneross/blog-scraper/parsers';
+ * import { parsePptxFile } from '@tyroneross/omniscraper/parsers';
  *
  * const result = await parsePptxFile('./presentation.pptx');
  * for (const slide of result.slides) {

@@ -152,7 +152,7 @@ export interface PythonParseOptions {
  *
  * @example
  * ```typescript
- * import { parsePythonFile } from '@tyroneross/blog-scraper/parsers';
+ * import { parsePythonFile } from '@tyroneross/omniscraper/parsers';
  *
  * const result = parsePythonFile('./scripts/process.py');
  * console.log(result.functions.map(f => f.name));

@@ -48,6 +48,6 @@ jobs:
         run: npm version ${{ inputs.version }} --no-git-tag-version
 
       # Uses OIDC trusted publishers - no NPM_TOKEN required
-      # Configured at: https://www.npmjs.com/package/@tyroneross/blog-content-scraper/access
+      # Configured at: https://www.npmjs.com/package/@tyroneross/omniscraper/access
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public

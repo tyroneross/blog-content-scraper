@@ -1,5 +1,5 @@
 {
-  "name": "@tyroneross/blog-scraper",
+  "name": "@tyroneross/omniscraper",
   "version": "0.5.0",
   "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, HTML, single page extraction, Excel parsing, and Python source analysis.",
   "main": "./dist/lib/index.js",
@@ -92,11 +92,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tyroneross/blog-scraper.git"
+    "url": "git+https://github.com/tyroneross/omniscraper.git"
   },
-  "homepage": "https://github.com/tyroneross/blog-scraper#readme",
+  "homepage": "https://github.com/tyroneross/omniscraper#readme",
   "bugs": {
-    "url": "https://github.com/tyroneross/blog-scraper/issues"
+    "url": "https://github.com/tyroneross/omniscraper/issues"
   },
   "scripts": {
     "dev": "next dev",
@@ -109,7 +109,7 @@
     "test:f1": "tsx tests/run-f1-tests.ts",
     "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
     "prepublishOnly": "npm run build:sdk",
-    "scraper-update": "npm update @tyroneross/blog-scraper@latest && echo '✅ @tyroneross/blog-scraper updated to latest version'"
+    "scraper-update": "npm update @tyroneross/omniscraper@latest && echo '✅ @tyroneross/omniscraper updated to latest version'"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",

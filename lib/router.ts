@@ -152,7 +152,7 @@ export function detectInputType(input: string): InputType {
  *
  * @example
  * ```typescript
- * import { parse } from '@tyroneross/blog-scraper';
+ * import { parse } from '@tyroneross/omniscraper';
  *
  * // Automatically routes to the correct parser
  * const result = await parse('./report.xlsx');     // → Excel parser

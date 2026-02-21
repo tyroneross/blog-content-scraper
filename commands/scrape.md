@@ -19,7 +19,7 @@ Extract content from the URL: $ARGUMENTS
 3. Create a temporary script to run the scraper:
 
 ```typescript
-import { smartScrape } from '@tyroneross/blog-scraper';
+import { smartScrape } from '@tyroneross/omniscraper';
 
 async function main() {
   const url = '$ARGUMENTS';
