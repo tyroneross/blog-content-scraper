@@ -112,7 +112,7 @@ export interface ExcelParseOptions {
  *
  * @example
  * ```typescript
- * import { parseExcelFile } from '@tyroneross/omniscraper/parsers';
+ * import { parseExcelFile } from '@tyroneross/omniparse/parsers';
  *
  * const result = await parseExcelFile('./data/report.xlsx');
  * console.log(result.sheets[0].headers);

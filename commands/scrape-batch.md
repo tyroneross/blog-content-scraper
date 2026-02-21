@@ -13,7 +13,7 @@ Process multiple URLs: $ARGUMENTS
 Parse the URLs from the arguments (comma or space separated) and use batch processing.
 
 ```typescript
-import { scrapeUrls } from '@tyroneross/omniscraper/batch';
+import { scrapeUrls } from '@tyroneross/omniparse/batch';
 
 async function main() {
   // Parse URLs from arguments

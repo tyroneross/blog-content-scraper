@@ -106,7 +106,7 @@ export interface PageExtractOptions {
   minContentLength?: number;
 }
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniScraper/1.0; +https://github.com/tyroneross/omniscraper)';
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniParse/1.0; +https://github.com/tyroneross/omniparse)';
 const WORDS_PER_MINUTE = 200;
 
 /**
@@ -122,7 +122,7 @@ const WORDS_PER_MINUTE = 200;
  *
  * @example
  * ```typescript
- * import { extractPage } from '@tyroneross/omniscraper';
+ * import { extractPage } from '@tyroneross/omniparse';
  *
  * const page = await extractPage('https://example.com/about');
  * console.log(page.title);

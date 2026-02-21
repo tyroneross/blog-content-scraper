@@ -382,7 +382,7 @@ let globalMockScraper: MockScraper | null = null;
  * @example
  * ```typescript
  * // In test setup
- * import { enableMockMode } from '@tyroneross/omniscraper/testing';
+ * import { enableMockMode } from '@tyroneross/omniparse/testing';
  *
  * beforeAll(() => {
  *   enableMockMode();

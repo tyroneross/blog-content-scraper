@@ -1,12 +1,12 @@
 /**
- * @package omniscraper SDK
+ * @package omniparse SDK
  *
  * Intelligent web scraper for extracting blog/news content from any website.
  * Supports RSS feeds, sitemaps, and HTML scraping with automatic detection.
  *
  * @example
  * ```typescript
- * import { scrapeWebsite, extractArticle } from '@tyroneross/omniscraper';
+ * import { scrapeWebsite, extractArticle } from '@tyroneross/omniparse';
  *
  * // Extract a single article directly
  * const article = await extractArticle('https://example.com/blog/my-post');
@@ -115,7 +115,7 @@ let globalConfig = {
  *
  * @example
  * ```typescript
- * import { configure } from '@tyroneross/omniscraper';
+ * import { configure } from '@tyroneross/omniparse';
  *
  * // Suppress all console output
  * configure({ quiet: true });

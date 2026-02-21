@@ -1,7 +1,7 @@
 /**
  * React Hook Module
  *
- * React hooks for using the omniscraper in React applications.
+ * React hooks for using the omniparse in React applications.
  * This module requires React as a peer dependency.
  *
  * NOTE: This module is FEATURE FLAGGED and requires explicit opt-in.
@@ -10,7 +10,7 @@
  * @example
  * ```typescript
  * // In your React component
- * import { useScraper } from '@tyroneross/omniscraper/react';
+ * import { useScraper } from '@tyroneross/omniparse/react';
  *
  * function MyComponent() {
  *   const { scrape, data, isLoading, error, progress } = useScraper();

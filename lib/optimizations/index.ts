@@ -45,7 +45,7 @@ export interface ConnectionPoolOptions {
  *
  * @example
  * ```typescript
- * import { createConnectionPool } from '@tyroneross/omniscraper/optimizations';
+ * import { createConnectionPool } from '@tyroneross/omniparse/optimizations';
  *
  * const pool = createConnectionPool({ maxSocketsPerHost: 6 });
  *
@@ -170,7 +170,7 @@ export interface FetchResult {
  *
  * @example
  * ```typescript
- * import { parallelFetch } from '@tyroneross/omniscraper/optimizations';
+ * import { parallelFetch } from '@tyroneross/omniparse/optimizations';
  *
  * const results = await parallelFetch(urls, {
  *   concurrency: 10,
@@ -199,7 +199,7 @@ export async function parallelFetch(
   let completed = 0;
 
   const defaultHeaders = {
-    'User-Agent': 'Mozilla/5.0 (compatible; OmniScraper/1.0)',
+    'User-Agent': 'Mozilla/5.0 (compatible; OmniParse/1.0)',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.9',
     'Connection': 'keep-alive',
@@ -305,7 +305,7 @@ export interface FastExtractResult {
  *
  * @example
  * ```typescript
- * import { fastExtract } from '@tyroneross/omniscraper/optimizations';
+ * import { fastExtract } from '@tyroneross/omniparse/optimizations';
  *
  * const result = fastExtract(htmlString);
  * console.log(result.title, result.wordCount);
@@ -411,7 +411,7 @@ export interface BatchExtractResult {
  *
  * @example
  * ```typescript
- * import { batchExtract } from '@tyroneross/omniscraper/optimizations';
+ * import { batchExtract } from '@tyroneross/omniparse/optimizations';
  *
  * const results = await batchExtract(urls, {
  *   concurrency: 10,

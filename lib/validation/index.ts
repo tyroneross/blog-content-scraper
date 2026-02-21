@@ -60,7 +60,7 @@ export interface ValidationOptions {
 // Constants
 // ============================================================================
 
-const DEFAULT_USER_AGENT = 'OmniScraperBot/1.0 (+https://github.com/tyroneross/omniscraper)';
+const DEFAULT_USER_AGENT = 'OmniParseBot/1.0 (+https://github.com/tyroneross/omniparse)';
 
 /** Patterns that indicate paywall/subscription content */
 const PAYWALL_INDICATORS = [

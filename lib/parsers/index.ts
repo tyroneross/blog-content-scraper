@@ -14,7 +14,7 @@
  *   parseExcelFile,
  *   parsePptxFile,
  *   parsePythonFile
- * } from '@tyroneross/omniscraper/parsers';
+ * } from '@tyroneross/omniparse/parsers';
  *
  * // Extract any web page
  * const page = await extractPage('https://example.com/about');

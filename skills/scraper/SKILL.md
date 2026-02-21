@@ -6,13 +6,13 @@ allowed-tools: Bash(npx tsx:*), Bash(node:*), Read, Write, Glob
 
 # Web Scraping Skill
 
-Extract blog and news content from any website using the @tyroneross/omniscraper SDK.
+Extract blog and news content from any website using the @tyroneross/omniparse SDK.
 
 ## Quick Reference
 
 ### Single Article (Most Common)
 ```typescript
-import { extractArticle } from '@tyroneross/omniscraper';
+import { extractArticle } from '@tyroneross/omniparse';
 
 const article = await extractArticle('https://example.com/blog/post');
 // Returns: { title, markdown, text, html, wordCount, readingTime, excerpt, author }
@@ -20,7 +20,7 @@ const article = await extractArticle('https://example.com/blog/post');
 
 ### LLM-Ready Output (For AI/RAG)
 ```typescript
-import { scrapeForLLM } from '@tyroneross/omniscraper/llm';
+import { scrapeForLLM } from '@tyroneross/omniparse/llm';
 
 const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 // tokens: estimated count for context window management
@@ -29,7 +29,7 @@ const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 
 ### Discover Articles from Site
 ```typescript
-import { scrapeWebsite } from '@tyroneross/omniscraper';
+import { scrapeWebsite } from '@tyroneross/omniparse';
 
 const result = await scrapeWebsite('https://techcrunch.com', {
   maxArticles: 10,
@@ -39,7 +39,7 @@ const result = await scrapeWebsite('https://techcrunch.com', {
 
 ### Smart Mode (Auto-Detect)
 ```typescript
-import { smartScrape } from '@tyroneross/omniscraper';
+import { smartScrape } from '@tyroneross/omniparse';
 
 const result = await smartScrape(url);
 if (result.mode === 'article') {
@@ -51,14 +51,14 @@ if (result.mode === 'article') {
 
 ### Batch Processing
 ```typescript
-import { scrapeUrls } from '@tyroneross/omniscraper/batch';
+import { scrapeUrls } from '@tyroneross/omniparse/batch';
 
 const result = await scrapeUrls(urls, { concurrency: 3 });
 ```
 
 ### Validate Before Scraping
 ```typescript
-import { validateUrl } from '@tyroneross/omniscraper/validation';
+import { validateUrl } from '@tyroneross/omniparse/validation';
 
 const { isReachable, robotsAllowed, suggestedAction } = await validateUrl(url);
 ```

@@ -156,7 +156,7 @@ export function detectInputType(input: string): InputType {
  *
  * @example
  * ```typescript
- * import { parse } from '@tyroneross/omniscraper';
+ * import { parse } from '@tyroneross/omniparse';
  *
  * // Automatically routes to the correct parser
  * const result = await parse('./report.xlsx');     // → Excel parser
@@ -214,7 +214,7 @@ export async function parse(
  *
  * @example
  * ```typescript
- * import { parseMultiple } from '@tyroneross/omniscraper';
+ * import { parseMultiple } from '@tyroneross/omniparse';
  *
  * const results = await parseMultiple([
  *   './report.xlsx',

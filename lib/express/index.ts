@@ -9,7 +9,7 @@
  * @example
  * ```typescript
  * import express from 'express';
- * import { createScraperRouter } from '@tyroneross/omniscraper/express';
+ * import { createScraperRouter } from '@tyroneross/omniparse/express';
  *
  * const app = express();
  * app.use('/api/scraper', createScraperRouter());
@@ -104,7 +104,7 @@ class RateLimiter {
  * @example
  * ```typescript
  * import express from 'express';
- * import { createScraperRouter } from '@tyroneross/omniscraper/express';
+ * import { createScraperRouter } from '@tyroneross/omniparse/express';
  *
  * const app = express();
  * app.use(express.json());

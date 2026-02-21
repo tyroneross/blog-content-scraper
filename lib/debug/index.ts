@@ -339,7 +339,7 @@ let globalDebugSession: DebugSession | null = null;
  *
  * @example
  * ```typescript
- * import { enableDebugMode, getDebugMetrics } from '@tyroneross/omniscraper/debug';
+ * import { enableDebugMode, getDebugMetrics } from '@tyroneross/omniparse/debug';
  *
  * enableDebugMode({ verbose: true });
  *

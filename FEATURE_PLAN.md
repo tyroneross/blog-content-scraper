@@ -136,7 +136,7 @@ export async function validateUrl(url: string): Promise<ValidationResult>;
 
 ### 1. React Hook
 ```typescript
-// @tyroneross/omniscraper/react
+// @tyroneross/omniparse/react
 export function useScraper() {
   return { scrape, data, isLoading, error, progress, cancel };
 }
@@ -144,7 +144,7 @@ export function useScraper() {
 
 ### 2. Express Router
 ```typescript
-// @tyroneross/omniscraper/express
+// @tyroneross/omniparse/express
 export function createScraperRouter(): Router;
 // Adds: POST /scrape, POST /extract, GET /validate
 ```
@@ -193,7 +193,7 @@ Phase 4 (DX)
 ## Package Exports Structure
 
 ```
-@tyroneross/omniscraper
+@tyroneross/omniparse
 ├── index          # Core: scrapeWebsite, extractArticle, smartScrape
 ├── /llm           # toLLMFormat, scrapeForLLM
 ├── /react         # useScraper hook

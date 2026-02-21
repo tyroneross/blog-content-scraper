@@ -1,4 +1,4 @@
-# Claude Code Instructions for @tyroneross/omniscraper
+# Claude Code Instructions for @tyroneross/omniparse
 
 This SDK provides intelligent web scraping for blog/news content. Use it when users need to extract articles, discover RSS feeds, or get LLM-ready content from websites.
 
@@ -21,7 +21,7 @@ This SDK provides intelligent web scraping for blog/news content. Use it when us
 
 ### Single Article Extraction (Most Common)
 ```typescript
-import { extractArticle } from '@tyroneross/omniscraper';
+import { extractArticle } from '@tyroneross/omniparse';
 
 const article = await extractArticle('https://example.com/blog/post');
 // Returns: { title, markdown, text, html, wordCount, readingTime, ... }
@@ -29,7 +29,7 @@ const article = await extractArticle('https://example.com/blog/post');
 
 ### LLM-Ready Output (For AI/RAG Use Cases)
 ```typescript
-import { scrapeForLLM } from '@tyroneross/omniscraper/llm';
+import { scrapeForLLM } from '@tyroneross/omniparse/llm';
 
 const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 // Use chunks for RAG, tokens for context window management
@@ -37,7 +37,7 @@ const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 
 ### Discover Multiple Articles
 ```typescript
-import { scrapeWebsite } from '@tyroneross/omniscraper';
+import { scrapeWebsite } from '@tyroneross/omniparse';
 
 const result = await scrapeWebsite('https://techcrunch.com', {
   maxArticles: 10,
@@ -48,7 +48,7 @@ const result = await scrapeWebsite('https://techcrunch.com', {
 
 ### Smart Mode (Auto-Detect)
 ```typescript
-import { smartScrape } from '@tyroneross/omniscraper';
+import { smartScrape } from '@tyroneross/omniparse';
 
 const result = await smartScrape(url);
 if (result.mode === 'article') {
@@ -60,7 +60,7 @@ if (result.mode === 'article') {
 
 ### Batch Processing
 ```typescript
-import { scrapeUrls } from '@tyroneross/omniscraper/batch';
+import { scrapeUrls } from '@tyroneross/omniparse/batch';
 
 const result = await scrapeUrls(urls, {
   concurrency: 3,
@@ -71,7 +71,7 @@ const result = await scrapeUrls(urls, {
 
 ### URL Validation
 ```typescript
-import { validateUrl, canScrape } from '@tyroneross/omniscraper/validation';
+import { validateUrl, canScrape } from '@tyroneross/omniparse/validation';
 
 const validation = await validateUrl(url);
 // Returns: { isReachable, robotsAllowed, hasPaywall, suggestedAction }
@@ -83,13 +83,13 @@ const ok = await canScrape(url); // Quick boolean check
 
 | Import | Use For |
 |--------|---------|
-| `@tyroneross/omniscraper` | Core: `extractArticle`, `scrapeWebsite`, `smartScrape` |
-| `@tyroneross/omniscraper/llm` | LLM output: `scrapeForLLM`, `toLLMFormat`, `estimateTokens` |
-| `@tyroneross/omniscraper/batch` | Batch: `scrapeUrls`, `extractArticles` |
-| `@tyroneross/omniscraper/cache` | Caching: `createCache`, `MemoryCache`, `FileCache` |
-| `@tyroneross/omniscraper/validation` | Validation: `validateUrl`, `canScrape`, `isValidUrl` |
-| `@tyroneross/omniscraper/testing` | Testing: `createMockScraper`, `enableMockMode` |
-| `@tyroneross/omniscraper/debug` | Debug: `enableDebugMode`, `DebugSession` |
+| `@tyroneross/omniparse` | Core: `extractArticle`, `scrapeWebsite`, `smartScrape` |
+| `@tyroneross/omniparse/llm` | LLM output: `scrapeForLLM`, `toLLMFormat`, `estimateTokens` |
+| `@tyroneross/omniparse/batch` | Batch: `scrapeUrls`, `extractArticles` |
+| `@tyroneross/omniparse/cache` | Caching: `createCache`, `MemoryCache`, `FileCache` |
+| `@tyroneross/omniparse/validation` | Validation: `validateUrl`, `canScrape`, `isValidUrl` |
+| `@tyroneross/omniparse/testing` | Testing: `createMockScraper`, `enableMockMode` |
+| `@tyroneross/omniparse/debug` | Debug: `enableDebugMode`, `DebugSession` |
 
 ## Best Practices
 
@@ -115,13 +115,13 @@ const results = await scrapeUrls(urls, { concurrency: 3 });
 
 ### 5. Enable caching for repeated scrapes
 ```typescript
-import { createCache } from '@tyroneross/omniscraper/cache';
+import { createCache } from '@tyroneross/omniparse/cache';
 const cache = createCache({ provider: 'memory', ttlMs: 3600000 });
 ```
 
 ### 6. Suppress logs in production
 ```typescript
-import { configure } from '@tyroneross/omniscraper';
+import { configure } from '@tyroneross/omniparse';
 configure({ quiet: true });
 ```
 
@@ -179,7 +179,7 @@ return articles.map(a => `- [${a.title}](${a.url})`).join('\n');
 
 Use mock mode for testing:
 ```typescript
-import { enableMockMode, disableMockMode } from '@tyroneross/omniscraper/testing';
+import { enableMockMode, disableMockMode } from '@tyroneross/omniparse/testing';
 
 enableMockMode();
 // All scraper calls now return mock data

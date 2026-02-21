@@ -122,7 +122,7 @@ export interface ExtractPageOptions {
 // Core Implementation
 // ============================================================================
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniScraper/1.0; +https://github.com/tyroneross/omniscraper)';
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniParse/1.0; +https://github.com/tyroneross/omniparse)';
 const DEFAULT_TIMEOUT = 15000;
 const MAX_CONTENT_SIZE = 10 * 1024 * 1024; // 10MB
 
@@ -139,7 +139,7 @@ const MAX_CONTENT_SIZE = 10 * 1024 * 1024; // 10MB
  *
  * @example
  * ```typescript
- * import { extractPage } from '@tyroneross/omniscraper/page';
+ * import { extractPage } from '@tyroneross/omniparse/page';
  *
  * // Extract any web page
  * const page = await extractPage('https://example.com/about');

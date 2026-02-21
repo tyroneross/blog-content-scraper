@@ -81,7 +81,7 @@ Difference: -0.8%
 
 ```bash
 git clone <your-repo-url>
-cd omniscraper
+cd omniparse
 npm install
 ```
 
