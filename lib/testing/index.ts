@@ -382,7 +382,7 @@ let globalMockScraper: MockScraper | null = null;
  * @example
  * ```typescript
  * // In test setup
- * import { enableMockMode } from '@tyroneross/blog-scraper/testing';
+ * import { enableMockMode } from '@tyroneross/scraper-app/testing';
  *
  * beforeAll(() => {
  *   enableMockMode();

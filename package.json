@@ -1,7 +1,7 @@
 {
-  "name": "@tyroneross/blog-scraper",
-  "version": "0.4.2",
-  "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, and HTML with automatic detection.",
+  "name": "@tyroneross/scraper-app",
+  "version": "0.5.0",
+  "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, HTML, and single page extraction.",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
   "exports": {
@@ -49,6 +49,16 @@
       "types": "./dist/lib/express/index.d.ts",
       "import": "./dist/lib/express/index.js",
       "require": "./dist/lib/express/index.js"
+    },
+    "./parsers": {
+      "types": "./dist/lib/parsers/index.d.ts",
+      "import": "./dist/lib/parsers/index.js",
+      "require": "./dist/lib/parsers/index.js"
+    },
+    "./optimizations": {
+      "types": "./dist/lib/optimizations/index.d.ts",
+      "import": "./dist/lib/optimizations/index.js",
+      "require": "./dist/lib/optimizations/index.js"
     }
   },
   "files": [
@@ -72,17 +82,18 @@
     "token-estimation",
     "batch-processing",
     "react-hook",
-    "express-router"
+    "express-router",
+    "page-extractor"
   ],
   "author": "Tyrone Ross",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tyroneross/blog-scraper.git"
+    "url": "git+https://github.com/tyroneross/blog-content-scraper.git"
   },
-  "homepage": "https://github.com/tyroneross/blog-scraper#readme",
+  "homepage": "https://github.com/tyroneross/blog-content-scraper#readme",
   "bugs": {
-    "url": "https://github.com/tyroneross/blog-scraper/issues"
+    "url": "https://github.com/tyroneross/blog-content-scraper/issues"
   },
   "scripts": {
     "dev": "next dev",
@@ -95,7 +106,7 @@
     "test:f1": "tsx tests/run-f1-tests.ts",
     "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
     "prepublishOnly": "npm run build:sdk",
-    "scraper-update": "npm update @tyroneross/blog-scraper@latest && echo '✅ @tyroneross/blog-scraper updated to latest version'"
+    "scraper-update": "npm update @tyroneross/scraper-app@latest && echo '✅ @tyroneross/scraper-app updated to latest version'"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
@@ -112,13 +123,13 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
     "@tailwindcss/typography": "^0.5.19",
-    "@tyroneross/claude-code-debugger": "^1.3.0",
     "@types/global-agent": "^3.0.0",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
+    "@tyroneross/claude-code-debugger": "^1.3.0",
     "eslint": "^8.0.0",
     "eslint-config-next": "^15.0.0",
     "lucide-react": "^0.400.0",
@@ -135,8 +146,8 @@
     "node": ">=18.0.0"
   },
   "peerDependencies": {
-    "react": ">=16.8.0",
-    "express": ">=4.0.0"
+    "express": ">=4.0.0",
+    "react": ">=16.8.0"
   },
   "peerDependenciesMeta": {
     "react": {

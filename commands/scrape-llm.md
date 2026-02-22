@@ -13,7 +13,7 @@ Extract LLM-optimized content from: $ARGUMENTS
 Use `scrapeForLLM` to get content formatted for AI/LLM use with token estimation.
 
 ```typescript
-import { scrapeForLLM } from '@tyroneross/blog-scraper/llm';
+import { scrapeForLLM } from '@tyroneross/scraper-app/llm';
 
 async function main() {
   const url = '$ARGUMENTS';

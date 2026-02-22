@@ -1,12 +1,12 @@
 /**
- * @package blog-content-scraper SDK
+ * @package @tyroneross/scraper-app SDK
  *
  * Intelligent web scraper for extracting blog/news content from any website.
  * Supports RSS feeds, sitemaps, and HTML scraping with automatic detection.
  *
  * @example
  * ```typescript
- * import { scrapeWebsite, extractArticle } from '@tyroneross/blog-scraper';
+ * import { scrapeWebsite, extractArticle } from '@tyroneross/scraper-app';
  *
  * // Extract a single article directly
  * const article = await extractArticle('https://example.com/blog/my-post');
@@ -86,6 +86,19 @@ export { globalSitemapParser, type SitemapEntry } from './web-scrapers/sitemap-p
 export { HTMLScraper, type ExtractedArticle, type ScrapingConfig } from './web-scrapers/html-scraper';
 export { ContentExtractor } from './web-scrapers/content-extractor';
 
+// Page extractor (single web page support)
+export { extractPage, type PageContent, type PageExtractOptions } from './parsers/page-extractor';
+
+// Unified router (auto-detects URL vs HTML string and dispatches to correct handler)
+export {
+  parse,
+  parseMultiple,
+  detectInputType,
+  type InputType,
+  type ParseResult,
+  type ScraperParseOptions
+} from './router';
+
 // ============================================================================
 // Configuration & Utilities
 // ============================================================================
@@ -102,7 +115,7 @@ let globalConfig = {
  *
  * @example
  * ```typescript
- * import { configure } from '@tyroneross/blog-scraper';
+ * import { configure } from '@tyroneross/scraper-app';
  *
  * // Suppress all console output
  * configure({ quiet: true });

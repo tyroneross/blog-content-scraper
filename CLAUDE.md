@@ -1,4 +1,4 @@
-# Claude Code Instructions for @tyroneross/blog-scraper
+# Claude Code Instructions for @tyroneross/scraper-app
 
 This SDK provides intelligent web scraping for blog/news content. Use it when users need to extract articles, discover RSS feeds, or get LLM-ready content from websites.
 
@@ -21,7 +21,7 @@ This SDK provides intelligent web scraping for blog/news content. Use it when us
 
 ### Single Article Extraction (Most Common)
 ```typescript
-import { extractArticle } from '@tyroneross/blog-scraper';
+import { extractArticle } from '@tyroneross/scraper-app';
 
 const article = await extractArticle('https://example.com/blog/post');
 // Returns: { title, markdown, text, html, wordCount, readingTime, ... }
@@ -29,7 +29,7 @@ const article = await extractArticle('https://example.com/blog/post');
 
 ### LLM-Ready Output (For AI/RAG Use Cases)
 ```typescript
-import { scrapeForLLM } from '@tyroneross/blog-scraper/llm';
+import { scrapeForLLM } from '@tyroneross/scraper-app/llm';
 
 const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 // Use chunks for RAG, tokens for context window management
@@ -37,7 +37,7 @@ const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 
 ### Discover Multiple Articles
 ```typescript
-import { scrapeWebsite } from '@tyroneross/blog-scraper';
+import { scrapeWebsite } from '@tyroneross/scraper-app';
 
 const result = await scrapeWebsite('https://techcrunch.com', {
   maxArticles: 10,
@@ -48,7 +48,7 @@ const result = await scrapeWebsite('https://techcrunch.com', {
 
 ### Smart Mode (Auto-Detect)
 ```typescript
-import { smartScrape } from '@tyroneross/blog-scraper';
+import { smartScrape } from '@tyroneross/scraper-app';
 
 const result = await smartScrape(url);
 if (result.mode === 'article') {
@@ -60,7 +60,7 @@ if (result.mode === 'article') {
 
 ### Batch Processing
 ```typescript
-import { scrapeUrls } from '@tyroneross/blog-scraper/batch';
+import { scrapeUrls } from '@tyroneross/scraper-app/batch';
 
 const result = await scrapeUrls(urls, {
   concurrency: 3,
@@ -71,7 +71,7 @@ const result = await scrapeUrls(urls, {
 
 ### URL Validation
 ```typescript
-import { validateUrl, canScrape } from '@tyroneross/blog-scraper/validation';
+import { validateUrl, canScrape } from '@tyroneross/scraper-app/validation';
 
 const validation = await validateUrl(url);
 // Returns: { isReachable, robotsAllowed, hasPaywall, suggestedAction }
@@ -83,13 +83,13 @@ const ok = await canScrape(url); // Quick boolean check
 
 | Import | Use For |
 |--------|---------|
-| `@tyroneross/blog-scraper` | Core: `extractArticle`, `scrapeWebsite`, `smartScrape` |
-| `@tyroneross/blog-scraper/llm` | LLM output: `scrapeForLLM`, `toLLMFormat`, `estimateTokens` |
-| `@tyroneross/blog-scraper/batch` | Batch: `scrapeUrls`, `extractArticles` |
-| `@tyroneross/blog-scraper/cache` | Caching: `createCache`, `MemoryCache`, `FileCache` |
-| `@tyroneross/blog-scraper/validation` | Validation: `validateUrl`, `canScrape`, `isValidUrl` |
-| `@tyroneross/blog-scraper/testing` | Testing: `createMockScraper`, `enableMockMode` |
-| `@tyroneross/blog-scraper/debug` | Debug: `enableDebugMode`, `DebugSession` |
+| `@tyroneross/scraper-app` | Core: `extractArticle`, `scrapeWebsite`, `smartScrape` |
+| `@tyroneross/scraper-app/llm` | LLM output: `scrapeForLLM`, `toLLMFormat`, `estimateTokens` |
+| `@tyroneross/scraper-app/batch` | Batch: `scrapeUrls`, `extractArticles` |
+| `@tyroneross/scraper-app/cache` | Caching: `createCache`, `MemoryCache`, `FileCache` |
+| `@tyroneross/scraper-app/validation` | Validation: `validateUrl`, `canScrape`, `isValidUrl` |
+| `@tyroneross/scraper-app/testing` | Testing: `createMockScraper`, `enableMockMode` |
+| `@tyroneross/scraper-app/debug` | Debug: `enableDebugMode`, `DebugSession` |
 
 ## Best Practices
 
@@ -115,13 +115,13 @@ const results = await scrapeUrls(urls, { concurrency: 3 });
 
 ### 5. Enable caching for repeated scrapes
 ```typescript
-import { createCache } from '@tyroneross/blog-scraper/cache';
+import { createCache } from '@tyroneross/scraper-app/cache';
 const cache = createCache({ provider: 'memory', ttlMs: 3600000 });
 ```
 
 ### 6. Suppress logs in production
 ```typescript
-import { configure } from '@tyroneross/blog-scraper';
+import { configure } from '@tyroneross/scraper-app';
 configure({ quiet: true });
 ```
 
@@ -179,10 +179,28 @@ return articles.map(a => `- [${a.title}](${a.url})`).join('\n');
 
 Use mock mode for testing:
 ```typescript
-import { enableMockMode, disableMockMode } from '@tyroneross/blog-scraper/testing';
+import { enableMockMode, disableMockMode } from '@tyroneross/scraper-app/testing';
 
 enableMockMode();
 // All scraper calls now return mock data
 const article = await extractArticle('https://any-url.com');
 disableMockMode();
 ```
+
+
+## Debugging Memory
+
+This project uses @tyroneross/claude-code-debugger for debugging memory.
+
+**Automatic behavior:**
+- Past debugging sessions are stored and indexed
+- Similar incidents surface automatically when investigating bugs
+- Patterns are extracted from repeated issues
+
+**Commands:**
+- `/debugger "symptom"` - Search past bugs for similar issues
+- `/debugger` - Show recent bugs, pick one to debug
+- `/debugger-status` - Show memory statistics
+- `/debugger-scan` - Scan recent sessions for debugging work
+
+The system learns from your debugging sessions automatically.

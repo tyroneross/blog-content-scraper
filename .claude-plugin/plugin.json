@@ -1,6 +1,6 @@
 {
-  "name": "blog-scraper",
-  "version": "0.4.2",
+  "name": "scraper-app",
+  "version": "0.5.0",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {
     "name": "Tyrone Ross",

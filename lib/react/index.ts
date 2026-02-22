@@ -1,7 +1,7 @@
 /**
  * React Hook Module
  *
- * React hooks for using the blog scraper in React applications.
+ * React hooks for using the scraper-app in React applications.
  * This module requires React as a peer dependency.
  *
  * NOTE: This module is FEATURE FLAGGED and requires explicit opt-in.
@@ -10,7 +10,7 @@
  * @example
  * ```typescript
  * // In your React component
- * import { useScraper } from '@tyroneross/blog-scraper/react';
+ * import { useScraper } from '@tyroneross/scraper-app/react';
  *
  * function MyComponent() {
  *   const { scrape, data, isLoading, error, progress } = useScraper();

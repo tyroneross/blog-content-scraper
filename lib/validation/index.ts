@@ -60,7 +60,7 @@ export interface ValidationOptions {
 // Constants
 // ============================================================================
 
-const DEFAULT_USER_AGENT = 'BlogScraperBot/1.0 (+https://github.com/tyroneross/blog-scraper)';
+const DEFAULT_USER_AGENT = 'OmniParseBot/1.0 (+https://github.com/tyroneross/scraper-app)';
 
 /** Patterns that indicate paywall/subscription content */
 const PAYWALL_INDICATORS = [

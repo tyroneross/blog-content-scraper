@@ -6,13 +6,13 @@ allowed-tools: Bash(npx tsx:*), Bash(node:*), Read, Write, Glob
 
 # Web Scraping Skill
 
-Extract blog and news content from any website using the @tyroneross/blog-scraper SDK.
+Extract blog and news content from any website using the @tyroneross/scraper-app SDK.
 
 ## Quick Reference
 
 ### Single Article (Most Common)
 ```typescript
-import { extractArticle } from '@tyroneross/blog-scraper';
+import { extractArticle } from '@tyroneross/scraper-app';
 
 const article = await extractArticle('https://example.com/blog/post');
 // Returns: { title, markdown, text, html, wordCount, readingTime, excerpt, author }
@@ -20,7 +20,7 @@ const article = await extractArticle('https://example.com/blog/post');
 
 ### LLM-Ready Output (For AI/RAG)
 ```typescript
-import { scrapeForLLM } from '@tyroneross/blog-scraper/llm';
+import { scrapeForLLM } from '@tyroneross/scraper-app/llm';
 
 const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 // tokens: estimated count for context window management
@@ -29,7 +29,7 @@ const { markdown, tokens, chunks, frontmatter } = await scrapeForLLM(url);
 
 ### Discover Articles from Site
 ```typescript
-import { scrapeWebsite } from '@tyroneross/blog-scraper';
+import { scrapeWebsite } from '@tyroneross/scraper-app';
 
 const result = await scrapeWebsite('https://techcrunch.com', {
   maxArticles: 10,
@@ -39,7 +39,7 @@ const result = await scrapeWebsite('https://techcrunch.com', {
 
 ### Smart Mode (Auto-Detect)
 ```typescript
-import { smartScrape } from '@tyroneross/blog-scraper';
+import { smartScrape } from '@tyroneross/scraper-app';
 
 const result = await smartScrape(url);
 if (result.mode === 'article') {
@@ -51,14 +51,14 @@ if (result.mode === 'article') {
 
 ### Batch Processing
 ```typescript
-import { scrapeUrls } from '@tyroneross/blog-scraper/batch';
+import { scrapeUrls } from '@tyroneross/scraper-app/batch';
 
 const result = await scrapeUrls(urls, { concurrency: 3 });
 ```
 
 ### Validate Before Scraping
 ```typescript
-import { validateUrl } from '@tyroneross/blog-scraper/validation';
+import { validateUrl } from '@tyroneross/scraper-app/validation';
 
 const { isReachable, robotsAllowed, suggestedAction } = await validateUrl(url);
 ```
