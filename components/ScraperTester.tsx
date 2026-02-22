@@ -17,6 +17,12 @@ const EXAMPLE_URLS = [
   { name: 'Meta AI', url: 'https://ai.meta.com/blog/' },
 ];
 
+interface ProgressState {
+  phase: string;
+  percent: number;
+  detail: string;
+}
+
 export function ScraperTester({
   onTestComplete,
   onTestStart,
@@ -28,12 +34,13 @@ export function ScraperTester({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScraperTestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [extractFullContent, setExtractFullContent] = useState(true); // Default to true (production mode)
-  const [showAdvanced, setShowAdvanced] = useState(false); // Advanced filtering controls
-  const [qualityThreshold, setQualityThreshold] = useState(0.6); // Default 60%
-  const [customDenyPaths, setCustomDenyPaths] = useState(''); // Optional custom deny patterns
-  const [perplexityApiKey, setPerplexityApiKey] = useState(''); // Optional Perplexity API key
-  const [showApiKey, setShowApiKey] = useState(false); // Show/hide API key
+  const [extractFullContent, setExtractFullContent] = useState(true);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [qualityThreshold, setQualityThreshold] = useState(0.6);
+  const [customDenyPaths, setCustomDenyPaths] = useState('');
+  const [perplexityApiKey, setPerplexityApiKey] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [progress, setProgress] = useState<ProgressState | null>(null);
 
   const handleTest = async () => {
     if (!url.trim()) {
@@ -41,13 +48,11 @@ export function ScraperTester({
       return;
     }
 
-    // Auto-add https:// if protocol is missing
     let normalizedUrl = url.trim();
     if (!normalizedUrl.match(/^https?:\/\//i)) {
       normalizedUrl = `https://${normalizedUrl}`;
     }
 
-    // Validate URL format
     try {
       new URL(normalizedUrl);
     } catch {
@@ -58,13 +63,13 @@ export function ScraperTester({
     setLoading(true);
     setError(null);
     setResult(null);
+    setProgress({ phase: 'init', percent: 0, detail: 'Starting...' });
 
     if (onTestStart) {
       onTestStart(normalizedUrl);
     }
 
     try {
-      // Parse custom deny paths (one per line, filter empty lines)
       const denyPaths = customDenyPaths
         .split('\n')
         .map(p => p.trim())
@@ -82,7 +87,8 @@ export function ScraperTester({
           maxArticles: 10,
           extractFullContent,
           qualityThreshold,
-          denyPaths: denyPaths.length > 0 ? denyPaths : undefined, // Only send if custom paths provided
+          denyPaths: denyPaths.length > 0 ? denyPaths : undefined,
+          stream: true,
         }),
       });
 
@@ -91,11 +97,49 @@ export function ScraperTester({
         throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data: ScraperTestResult = await response.json();
-      setResult(data);
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
 
-      if (onTestComplete) {
-        onTestComplete(data);
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const event = JSON.parse(line.slice(6));
+
+              if (event.type === 'progress') {
+                setProgress({
+                  phase: event.phase,
+                  percent: event.percent,
+                  detail: event.detail || '',
+                });
+              } else if (event.type === 'result') {
+                setResult(event.data);
+                if (onTestComplete) {
+                  onTestComplete(event.data);
+                }
+              } else if (event.type === 'error') {
+                throw new Error(event.error);
+              }
+            } catch (e) {
+              if (e instanceof SyntaxError) continue;
+              throw e;
+            }
+          }
+        }
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
@@ -106,6 +150,7 @@ export function ScraperTester({
       }
     } finally {
       setLoading(false);
+      setProgress(null);
     }
   };
 
@@ -149,7 +194,7 @@ export function ScraperTester({
                 {loading ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Testing...
+                    {progress?.percent || 0}%
                   </>
                 ) : (
                   <>
@@ -163,6 +208,22 @@ export function ScraperTester({
               Enter any website URL (https:// is optional)
             </p>
           </div>
+
+          {/* Progress Indicator */}
+          {loading && progress && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-blue-900">{progress.detail}</span>
+                <span className="text-sm font-bold text-blue-600">{progress.percent}%</span>
+              </div>
+              <div className="w-full h-2 bg-blue-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 rounded-full transition-all duration-300 ease-out"
+                  style={{ width: `${progress.percent}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Full Content Extraction Option */}
           <div className={`flex items-center gap-2 p-3 border rounded-lg ${
