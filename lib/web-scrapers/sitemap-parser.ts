@@ -169,9 +169,10 @@ export class SitemapParser {
 
         try {
           const response = await fetch(url, {
-            headers: { 
+            headers: {
               'User-Agent': this.userAgent,
               'Accept': 'application/xml, text/xml, */*',
+              'Accept-Language': 'en-US,en;q=0.9',
             },
             signal: controller.signal,
           });
@@ -237,11 +238,11 @@ export class SitemapParser {
   }
 
   private async parseSitemapIndex(
-    xml: string, 
+    xml: string,
     options: any
   ): Promise<SitemapEntry[]> {
     console.log(`🗺️ [Sitemap] Parsing sitemap index`);
-    
+
     const $ = cheerio.load(xml, { xmlMode: true });
     const sitemaps: string[] = [];
     const allEntries: SitemapEntry[] = [];
@@ -257,10 +258,30 @@ export class SitemapParser {
 
     console.log(`🗺️ [Sitemap] Found ${sitemaps.length} sitemaps in index`);
 
-    // Parse each individual sitemap
-    const entriesPerSitemap = Math.floor((options.maxEntries || this.maxEntries) / sitemaps.length);
-    
-    for (const sitemapUrl of sitemaps.slice(0, 10)) { // Limit to 10 sitemaps to avoid timeouts
+    // Prioritize US English sitemaps, then other English, then rest
+    const prioritizedSitemaps = sitemaps.sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+
+      // /en-us/ comes first
+      const aIsEnUs = aLower.includes('/en-us/') || aLower.includes('/en_us/');
+      const bIsEnUs = bLower.includes('/en-us/') || bLower.includes('/en_us/');
+      if (aIsEnUs && !bIsEnUs) return -1;
+      if (bIsEnUs && !aIsEnUs) return 1;
+
+      // Then other English locales
+      const aIsEnglish = /\/en[-_][a-z]{2}\//i.test(aLower);
+      const bIsEnglish = /\/en[-_][a-z]{2}\//i.test(bLower);
+      if (aIsEnglish && !bIsEnglish) return -1;
+      if (bIsEnglish && !aIsEnglish) return 1;
+
+      return 0;
+    });
+
+    // Parse each individual sitemap (prioritize en-us, limit to 10)
+    const entriesPerSitemap = Math.floor((options.maxEntries || this.maxEntries) / Math.min(sitemaps.length, 10));
+
+    for (const sitemapUrl of prioritizedSitemaps.slice(0, 10)) {
       try {
         const sitemapXml = await this.fetchSitemap(sitemapUrl);
         if (sitemapXml) {

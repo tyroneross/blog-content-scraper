@@ -50,6 +50,49 @@ export const DEFAULT_DENY_PATHS = [
   '/archive/*',
   '/search',
   '/search/*',
+  // Non-English language paths (filter to English only)
+  '/cs-cz/*',  // Czech
+  '/de-de/*',  // German
+  '/de-at/*',  // German (Austria)
+  '/de-ch/*',  // German (Swiss)
+  '/fr-fr/*',  // French
+  '/fr-ca/*',  // French (Canada)
+  '/es-es/*',  // Spanish
+  '/es-mx/*',  // Spanish (Mexico)
+  '/es-la/*',  // Spanish (Latin America)
+  '/it-it/*',  // Italian
+  '/ja-jp/*',  // Japanese
+  '/ko-kr/*',  // Korean
+  '/zh-cn/*',  // Chinese (Simplified)
+  '/zh-tw/*',  // Chinese (Traditional)
+  '/zh-hk/*',  // Chinese (Hong Kong)
+  '/pt-br/*',  // Portuguese (Brazil)
+  '/pt-pt/*',  // Portuguese
+  '/ru-ru/*',  // Russian
+  '/pl-pl/*',  // Polish
+  '/nl-nl/*',  // Dutch
+  '/sv-se/*',  // Swedish
+  '/nb-no/*',  // Norwegian
+  '/da-dk/*',  // Danish
+  '/fi-fi/*',  // Finnish
+  '/tr-tr/*',  // Turkish
+  '/ar-ae/*',  // Arabic
+  '/he-il/*',  // Hebrew
+  '/th-th/*',  // Thai
+  '/vi-vn/*',  // Vietnamese
+  '/id-id/*',  // Indonesian
+  // Short language codes
+  '/de/*',
+  '/fr/*',
+  '/es/*',
+  '/it/*',
+  '/ja/*',
+  '/ko/*',
+  '/zh/*',
+  '/pt/*',
+  '/ru/*',
+  '/pl/*',
+  '/nl/*',
 ];
 
 /**
