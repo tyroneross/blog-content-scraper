@@ -6,18 +6,94 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ScraperResultsProps, ScrapedArticle } from '@/lib/types';
-import { CheckCircle, AlertCircle, Clock, ExternalLink, ChevronDown, ChevronUp, Filter } from 'lucide-react';
+import { ScraperResultsProps, ScrapedArticle, ProgressStage } from '@/lib/types';
+import { CheckCircle, AlertCircle, Clock, ExternalLink, ChevronDown, ChevronUp, Filter, Map, Rss } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-export function ScraperResults({ result, loading, error, className = '' }: ScraperResultsProps) {
+// Progress stages in order
+const PROGRESS_STAGES: { stage: ProgressStage; label: string }[] = [
+  { stage: 'rss_check', label: 'Checking RSS feeds...' },
+  { stage: 'sitemap_discovery', label: 'Discovering sitemaps...' },
+  { stage: 'subdomain_check', label: 'Checking blog subdomains...' },
+  { stage: 'content_extraction', label: 'Extracting article content...' },
+  { stage: 'quality_filtering', label: 'Applying quality filters...' },
+  { stage: 'complete', label: 'Complete!' },
+];
+
+function getStageIndex(stage: ProgressStage): number {
+  return PROGRESS_STAGES.findIndex(s => s.stage === stage);
+}
+
+export function ScraperResults({ result, loading, error, className = '', progress }: ScraperResultsProps) {
   if (loading) {
+    const currentStageIndex = progress ? getStageIndex(progress.stage) : 0;
+    const progressPercent = progress?.percent || 0;
+
     return (
-      <div className={`p-6 bg-blue-50 border border-blue-200 rounded-lg ${className}`}>
-        <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-blue-700">Testing scraper...</p>
+      <div className={`p-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg ${className}`}>
+        <div className="space-y-4">
+          {/* Main spinner and message */}
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="w-8 h-8 border-2 border-blue-200 rounded-full" />
+              <div className="absolute top-0 left-0 w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-blue-900">
+                {progress?.message || 'Scraping in progress...'}
+              </p>
+              <p className="text-xs text-blue-600">
+                {progress?.details || 'This may take 10-30 seconds'}
+              </p>
+            </div>
+          </div>
+
+          {/* Dynamic progress stages */}
+          <div className="space-y-2">
+            {PROGRESS_STAGES.slice(0, -1).map((stage, index) => {
+              const isCompleted = index < currentStageIndex;
+              const isCurrent = index === currentStageIndex;
+
+              return (
+                <div
+                  key={stage.stage}
+                  className={`flex items-center gap-2 text-xs transition-all duration-300 ${
+                    isCompleted ? 'opacity-50' : isCurrent ? 'opacity-100' : 'opacity-30'
+                  }`}
+                >
+                  {isCompleted ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                  ) : isCurrent ? (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                  ) : (
+                    <div className="w-2 h-2 bg-gray-300 rounded-full" />
+                  )}
+                  <span className={`${
+                    isCompleted ? 'text-green-600 line-through' :
+                    isCurrent ? 'text-blue-700 font-medium' :
+                    'text-gray-400'
+                  }`}>
+                    {stage.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Progress bar with actual percentage */}
+          <div className="space-y-1">
+            <div className="flex justify-between text-xs text-blue-600">
+              <span>Progress</span>
+              <span>{progressPercent}%</span>
+            </div>
+            <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-500 rounded-full transition-all duration-500 ease-out"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -45,7 +121,26 @@ export function ScraperResults({ result, loading, error, className = '' }: Scrap
     );
   }
 
-  const { detectedType, confidence, articles, extractionStats, processingTime, errors } = result;
+  const { detectedType, confidence, articles, extractionStats, processingTime, errors, discoveredSitemaps, discoveredFeeds } = result;
+  const [showSitemapDetails, setShowSitemapDetails] = useState(false);
+
+  // Determine actual status based on results
+  const hasCircuitBreakerError = errors?.some(e => e.includes('CircuitBreaker'));
+  const hasTimeoutError = errors?.some(e => e.includes('timeout'));
+  const hasCriticalError = hasCircuitBreakerError || hasTimeoutError;
+  const hasErrors = (errors?.length ?? 0) > 0;
+  const hasArticles = articles.length > 0;
+
+  // Status badge configuration
+  const statusConfig = hasCriticalError
+    ? { bg: 'bg-red-50', border: 'border-red-200', icon: AlertCircle, iconColor: 'text-red-600', text: 'Failed', textColor: 'text-red-700' }
+    : !hasArticles && hasErrors
+    ? { bg: 'bg-amber-50', border: 'border-amber-200', icon: AlertCircle, iconColor: 'text-amber-600', text: 'No Results', textColor: 'text-amber-700' }
+    : hasArticles && hasErrors
+    ? { bg: 'bg-amber-50', border: 'border-amber-200', icon: CheckCircle, iconColor: 'text-amber-600', text: 'Partial', textColor: 'text-amber-700' }
+    : { bg: 'bg-green-50', border: 'border-green-200', icon: CheckCircle, iconColor: 'text-green-600', text: 'Success', textColor: 'text-green-700' };
+
+  const StatusIcon = statusConfig.icon;
 
   return (
     <div className={`space-y-4 ${className}`}>
@@ -56,9 +151,9 @@ export function ScraperResults({ result, loading, error, className = '' }: Scrap
             <h3 className="font-medium text-gray-900 mb-1">Scraping Complete</h3>
             <p className="text-sm text-gray-600">{result.url}</p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1 bg-green-50 border border-green-200 rounded-full">
-            <CheckCircle className="w-4 h-4 text-green-600" />
-            <span className="text-xs font-medium text-green-700">Success</span>
+          <div className={`flex items-center gap-2 px-3 py-1 ${statusConfig.bg} border ${statusConfig.border} rounded-full`}>
+            <StatusIcon className={`w-4 h-4 ${statusConfig.iconColor}`} />
+            <span className={`text-xs font-medium ${statusConfig.textColor}`}>{statusConfig.text}</span>
           </div>
         </div>
 
@@ -122,6 +217,75 @@ export function ScraperResults({ result, loading, error, className = '' }: Scrap
                 <p className="text-xs text-gray-500">...and {errors.length - 3} more</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Sitemap & Feed Discovery */}
+        {((discoveredSitemaps && discoveredSitemaps.length > 0) || (discoveredFeeds && discoveredFeeds.length > 0)) && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => setShowSitemapDetails(!showSitemapDetails)}
+              className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 transition-colors w-full"
+            >
+              <Map className="w-3 h-3" />
+              <span>Source Discovery Details</span>
+              <span className="text-gray-400">
+                ({(discoveredSitemaps?.length || 0)} sitemaps, {(discoveredFeeds?.length || 0)} feeds)
+              </span>
+              {showSitemapDetails ? <ChevronUp className="w-3 h-3 ml-auto" /> : <ChevronDown className="w-3 h-3 ml-auto" />}
+            </button>
+
+            {showSitemapDetails && (
+              <div className="mt-3 space-y-3">
+                {/* Sitemaps */}
+                {discoveredSitemaps && discoveredSitemaps.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+                      <Map className="w-3 h-3" />
+                      Discovered Sitemaps ({discoveredSitemaps.length})
+                    </p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {discoveredSitemaps.map((sitemap, idx) => (
+                        <a
+                          key={idx}
+                          href={sitemap}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs text-blue-600 hover:text-blue-800 hover:underline truncate"
+                          title={sitemap}
+                        >
+                          {sitemap}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* RSS Feeds */}
+                {discoveredFeeds && discoveredFeeds.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-gray-600 mb-2 flex items-center gap-1">
+                      <Rss className="w-3 h-3" />
+                      Discovered Feeds ({discoveredFeeds.length})
+                    </p>
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {discoveredFeeds.map((feed, idx) => (
+                        <a
+                          key={idx}
+                          href={feed.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-xs text-orange-600 hover:text-orange-800 hover:underline truncate"
+                          title={feed.url}
+                        >
+                          {feed.title || feed.url} {feed.type && <span className="text-gray-400">({feed.type})</span>}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -343,7 +507,18 @@ function ArticleCard({ article, index }: { article: ScrapedArticle; index: numbe
                 </span>
               </div>
               <div className="text-sm text-gray-700 leading-relaxed max-h-96 overflow-y-auto p-4 bg-white rounded border border-gray-200 prose prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    // Handle empty or invalid image sources
+                    img: ({ src, alt, ...props }) => {
+                      if (!src || src === '') {
+                        return null; // Don't render images with empty src
+                      }
+                      return <img src={src} alt={alt || ''} {...props} />;
+                    }
+                  }}
+                >
                   {article.fullContentMarkdown}
                 </ReactMarkdown>
               </div>

@@ -1,0 +1,12 @@
+{
+  "symptom": "RSS articles returning 0 results despite valid feed",
+  "memory": {
+    "incidents": [],
+    "patterns": [],
+    "confidence": 0,
+    "retrieval_method": "incident",
+    "tokens_used": 0
+  },
+  "session_id": "SESSION_1766906501758_sxy4",
+  "started_at": 1766906501758
+}

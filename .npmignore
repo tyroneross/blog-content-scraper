@@ -1,0 +1,37 @@
+# Next.js app (web UI only, not part of SDK)
+app/
+components/
+public/
+.next/
+
+# Tests
+tests/
+test-sdk.ts
+*.test.ts
+
+# Development
+.claude/
+.git/
+.gitignore
+.eslintrc*
+*.md
+!README.md
+
+# Config files
+tsconfig.json
+tsconfig.build.json
+next.config.*
+next-env.d.ts
+tailwind.config.*
+postcss.config.*
+
+# Scripts
+scripts/
+
+# Source (publish compiled dist only)
+lib/
+
+# Misc
+*.log
+.DS_Store
+node_modules/

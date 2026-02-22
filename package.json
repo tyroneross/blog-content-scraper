@@ -1,26 +1,122 @@
 {
-  "name": "scraper-monorepo",
-  "version": "1.0.0",
-  "description": "Web scraper application and SDK monorepo",
-  "private": true,
-  "workspaces": [
-    "packages/*"
+  "name": "@tyroneross/scraper-app",
+  "version": "0.5.0",
+  "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, HTML, and single page extraction.",
+  "main": "./dist/lib/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/index.js",
+      "require": "./dist/lib/index.js"
+    },
+    "./llm": {
+      "types": "./dist/lib/llm/index.d.ts",
+      "import": "./dist/lib/llm/index.js",
+      "require": "./dist/lib/llm/index.js"
+    },
+    "./testing": {
+      "types": "./dist/lib/testing/index.d.ts",
+      "import": "./dist/lib/testing/index.js",
+      "require": "./dist/lib/testing/index.js"
+    },
+    "./cache": {
+      "types": "./dist/lib/cache/index.d.ts",
+      "import": "./dist/lib/cache/index.js",
+      "require": "./dist/lib/cache/index.js"
+    },
+    "./validation": {
+      "types": "./dist/lib/validation/index.d.ts",
+      "import": "./dist/lib/validation/index.js",
+      "require": "./dist/lib/validation/index.js"
+    },
+    "./debug": {
+      "types": "./dist/lib/debug/index.d.ts",
+      "import": "./dist/lib/debug/index.js",
+      "require": "./dist/lib/debug/index.js"
+    },
+    "./batch": {
+      "types": "./dist/lib/batch/index.d.ts",
+      "import": "./dist/lib/batch/index.js",
+      "require": "./dist/lib/batch/index.js"
+    },
+    "./react": {
+      "types": "./dist/lib/react/index.d.ts",
+      "import": "./dist/lib/react/index.js",
+      "require": "./dist/lib/react/index.js"
+    },
+    "./express": {
+      "types": "./dist/lib/express/index.d.ts",
+      "import": "./dist/lib/express/index.js",
+      "require": "./dist/lib/express/index.js"
+    },
+    "./parsers": {
+      "types": "./dist/lib/parsers/index.d.ts",
+      "import": "./dist/lib/parsers/index.js",
+      "require": "./dist/lib/parsers/index.js"
+    },
+    "./optimizations": {
+      "types": "./dist/lib/optimizations/index.d.ts",
+      "import": "./dist/lib/optimizations/index.js",
+      "require": "./dist/lib/optimizations/index.js"
+    }
+  },
+  "files": [
+    "dist/lib",
+    "README.md",
+    "LICENSE"
   ],
+  "sideEffects": false,
+  "keywords": [
+    "scraper",
+    "web-scraper",
+    "blog",
+    "rss",
+    "sitemap",
+    "content-extraction",
+    "readability",
+    "news",
+    "article",
+    "llm",
+    "ai",
+    "token-estimation",
+    "batch-processing",
+    "react-hook",
+    "express-router",
+    "page-extractor"
+  ],
+  "author": "Tyrone Ross",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tyroneross/blog-content-scraper.git"
+  },
+  "homepage": "https://github.com/tyroneross/blog-content-scraper#readme",
+  "bugs": {
+    "url": "https://github.com/tyroneross/blog-content-scraper/issues"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:sdk": "tsc -p tsconfig.build.json",
     "start": "next start",
     "lint": "next lint",
     "pre-deploy": "./scripts/pre-deploy.sh",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:f1": "tsx tests/run-f1-tests.ts",
+    "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
+    "prepublishOnly": "npm run build:sdk",
+    "scraper-update": "npm update @tyroneross/scraper-app@latest && echo '✅ @tyroneross/scraper-app updated to latest version'"
   },
   "dependencies": {
-    "@mozilla/readability": "^0.5.0",
+    "@mozilla/readability": "^0.6.0",
     "@tailwindcss/typography": "^0.5.19",
     "cheerio": "^1.1.2",
+    "global-agent": "^3.0.0",
     "jsdom": "^24.0.0",
     "lucide-react": "^0.469.0",
     "next": "^16.1.1",
+    "p-limit": "^7.2.0",
     "playwright": "^1.57.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -32,19 +128,37 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
-    "@tyroneross/interface-built-right": "file:../interface-built-right",
+    "@types/global-agent": "^3.0.0",
     "@types/jsdom": "^21.1.7",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
+    "@tyroneross/claude-code-debugger": "^1.3.0",
+    "@tyroneross/interface-built-right": "file:../interface-built-right",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.0",
     "postcss": "^8.4.0",
     "tailwindcss": "^4.1.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "peerDependencies": {
+    "express": ">=4.0.0",
+    "react": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "express": {
+      "optional": true
+    }
+  },
+  "overrides": {
+    "qs": ">=6.14.1"
   }
 }

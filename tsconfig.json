@@ -25,9 +25,6 @@
     "paths": {
       "@/*": [
         "./*"
-      ],
-      "@/lib/*": [
-        "./blog-content-scraper/lib/*"
       ]
     }
   },
@@ -39,6 +36,9 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "tests",
+    "cli",
+    "dist"
   ]
 }

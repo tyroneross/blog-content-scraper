@@ -96,7 +96,7 @@ export const circuitBreakers = {
   scrapingTest: new CircuitBreaker({
     name: 'ScrapingTest',
     failureThreshold: 3,
-    timeout: 30000, // 30 seconds for test endpoints
+    timeout: 120000, // 120 seconds to accommodate large sites with many sitemaps
     resetTimeout: 60000 // 1 minute
   })
 };

@@ -1,0 +1,54 @@
+{
+  "incident_id": "INC_20251228_rss_allow_path_filtering",
+  "timestamp": 1735370400000,
+  "symptom": "RSS articles returning 0 results despite valid feed - TechCrunch showed 'Success' with 0 articles even though RSS feed contained 20 valid articles",
+  "symptom_type": "logic",
+  "root_cause": {
+    "description": "RSS feed articles were being filtered out by allow path patterns designed for sitemap filtering. TechCrunch and similar sites use date-based URLs (e.g., /2025/12/27/article-slug/) that don't match default allow patterns (/news/*, /blog/*, /articles/*). The applyPathFilters() function was applying allow filters to RSS results, but RSS feeds are already curated content lists that don't need allow filtering - only deny filters should apply.",
+    "file": "lib/source-orchestrator.ts",
+    "category": "logic",
+    "confidence": 0.95,
+    "code_snippet": "// BEFORE: RSS results filtered by allow patterns\nresult.articles = this.applyPathFilters(rssArticles, config);\n// All TechCrunch articles filtered out because /2025/12/27/* doesn't match /news/*, /blog/*\n\n// AFTER: RSS skips allow filters (only deny applies)\nresult.articles = this.applyPathFilters(rssArticles, config, { skipAllowFilters: true });",
+    "additional_files": [
+      "components/ScraperTester.tsx",
+      "app/api/scraper-test/route.ts"
+    ]
+  },
+  "fix": {
+    "approach": "Added skipAllowFilters option to applyPathFilters() method. RSS sources now pass { skipAllowFilters: true } since RSS is already curated content. Sitemap and HTML sources continue using both allow and deny filters.",
+    "changes": [
+      {
+        "file": "lib/source-orchestrator.ts",
+        "lines_changed": 21,
+        "change_type": "modify",
+        "summary": "Added skipAllowFilters option to applyPathFilters(), updated RSS processing calls to skip allow filters"
+      }
+    ],
+    "time_to_fix": 10,
+    "commands_run": [
+      "npm run typecheck",
+      "curl -X POST http://localhost:3000/api/scraper-test -d '{\"url\":\"https://techcrunch.com\"}'",
+      "git commit -m 'fix: skip allow path filtering for RSS sources'"
+    ]
+  },
+  "verification": {
+    "status": "verified",
+    "regression_tests_passed": true,
+    "user_journey_tested": true,
+    "success_criteria_met": true,
+    "verification_method": "Tested TechCrunch scraping - now returns 5 articles with full content extraction vs 0 before fix"
+  },
+  "tags": [
+    "rss",
+    "path-filtering",
+    "scraper",
+    "techcrunch",
+    "url-patterns",
+    "date-based-urls"
+  ],
+  "related_incidents": [],
+  "prevention": {
+    "pattern": "RSS feeds are curated content - don't apply allow path filters to RSS sources",
+    "suggestion": "When adding path filtering to scraper sources, consider whether the source is already curated (RSS) vs raw (sitemap/HTML)"
+  }
+}

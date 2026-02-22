@@ -14,23 +14,60 @@ interface HostState {
   backoffMultiplier: number;
   queue: QueuedRequest[];
   processing: boolean;
+  activeCount: number;
 }
+
+export interface RateLimiterConfig {
+  requestsPerSecond?: number;
+  maxBackoff?: number;
+  maxConcurrent?: number;
+  maxConcurrentPerHost?: number;
+}
+
+// Preset configurations for different use cases
+export const RATE_LIMITER_PRESETS = {
+  // Conservative: for web app with strict limits
+  conservative: {
+    requestsPerSecond: 1,
+    maxBackoff: 30000,
+    maxConcurrent: 10,
+    maxConcurrentPerHost: 2,
+  },
+  // Moderate: good balance of speed and politeness (default for web app)
+  moderate: {
+    requestsPerSecond: 2,
+    maxBackoff: 30000,
+    maxConcurrent: 20,
+    maxConcurrentPerHost: 3,
+  },
+  // Aggressive: for SDK usage with higher limits
+  aggressive: {
+    requestsPerSecond: 4,
+    maxBackoff: 15000,
+    maxConcurrent: 30,
+    maxConcurrentPerHost: 5,
+  },
+} as const;
+
+export type RateLimiterPreset = keyof typeof RATE_LIMITER_PRESETS;
 
 export class ScrapingRateLimiter {
   private hosts = new Map<string, HostState>();
   private readonly baseDelay: number;
   private readonly maxBackoff: number;
   private readonly maxConcurrent: number;
+  private readonly maxConcurrentPerHost: number;
   private activeRequests = new Set<string>();
 
-  constructor(options: {
-    requestsPerSecond?: number;
-    maxBackoff?: number;
-    maxConcurrent?: number;
-  } = {}) {
-    this.baseDelay = Math.floor(1000 / (options.requestsPerSecond || 1));
-    this.maxBackoff = options.maxBackoff || 30000; // 30 seconds max backoff
-    this.maxConcurrent = options.maxConcurrent || 10;
+  constructor(options: RateLimiterConfig = {}) {
+    this.baseDelay = Math.floor(1000 / (options.requestsPerSecond || 2));
+    this.maxBackoff = options.maxBackoff || 30000;
+    this.maxConcurrent = options.maxConcurrent || 20;
+    this.maxConcurrentPerHost = options.maxConcurrentPerHost || 3;
+  }
+
+  static fromPreset(preset: RateLimiterPreset): ScrapingRateLimiter {
+    return new ScrapingRateLimiter(RATE_LIMITER_PRESETS[preset]);
   }
 
   async execute<T>(
@@ -77,7 +114,8 @@ export class ScrapingRateLimiter {
         backoffUntil: 0,
         backoffMultiplier: 1,
         queue: [],
-        processing: false
+        processing: false,
+        activeCount: 0
       });
     }
 
@@ -112,9 +150,15 @@ export class ScrapingRateLimiter {
 
     try {
       while (hostState.queue.length > 0) {
-        // Check if we're within concurrent limits
+        // Check if we're within global concurrent limits
         if (this.activeRequests.size >= this.maxConcurrent) {
-          await this.wait(100); // Brief wait before checking again
+          await this.wait(100);
+          continue;
+        }
+
+        // Check if we're within per-host concurrent limits
+        if (hostState.activeCount >= this.maxConcurrentPerHost) {
+          await this.wait(100);
           continue;
         }
 
@@ -137,6 +181,7 @@ export class ScrapingRateLimiter {
         const request = hostState.queue.shift()!;
         const requestId = `${host}-${Date.now()}-${Math.random()}`;
         this.activeRequests.add(requestId);
+        hostState.activeCount++;
 
         try {
           hostState.lastRequest = Date.now();
@@ -152,6 +197,7 @@ export class ScrapingRateLimiter {
           await this.handleRequestError(hostState, request, error);
         } finally {
           this.activeRequests.delete(requestId);
+          hostState.activeCount--;
         }
       }
     } finally {
@@ -264,9 +310,13 @@ export class ScrapingRateLimiter {
   }
 }
 
-// Default global rate limiter instance
-export const globalRateLimiter = new ScrapingRateLimiter({
-  requestsPerSecond: 1,
-  maxBackoff: 30000,
-  maxConcurrent: 10
-});
+// Default global rate limiter instance (moderate preset for web app)
+export const globalRateLimiter = ScrapingRateLimiter.fromPreset('moderate');
+
+// Factory function to create rate limiter with custom config (for SDK users)
+export function createRateLimiter(config: RateLimiterConfig | RateLimiterPreset): ScrapingRateLimiter {
+  if (typeof config === 'string') {
+    return ScrapingRateLimiter.fromPreset(config);
+  }
+  return new ScrapingRateLimiter(config);
+}

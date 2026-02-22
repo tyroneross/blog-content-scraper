@@ -35,6 +35,8 @@ export interface ScraperTestResult {
   processingTime: number;
   errors: string[];
   timestamp: string;
+  discoveredSitemaps?: string[]; // Sitemaps discovered during scraping
+  discoveredFeeds?: { url: string; title?: string; type?: string }[]; // RSS feeds discovered
 }
 
 export interface ScraperTestRequest {
@@ -60,6 +62,25 @@ export interface ScraperResultsProps {
   loading?: boolean;
   error?: string | null;
   className?: string;
+  progress?: ProgressState | null;
+}
+
+/**
+ * Progress state for streaming scraper updates
+ */
+export type ProgressStage =
+  | 'rss_check'
+  | 'sitemap_discovery'
+  | 'subdomain_check'
+  | 'content_extraction'
+  | 'quality_filtering'
+  | 'complete';
+
+export interface ProgressState {
+  stage: ProgressStage;
+  message: string;
+  percent: number;
+  details?: string;
 }
 
 /**
