@@ -53,7 +53,6 @@ export {
   calculateArticleQualityScore,
   DEFAULT_QUALITY_CONFIG,
   DEFAULT_DENY_PATHS,
-  DEFAULT_ALLOW_PATHS,
   isNonEnglishLocalePath
 } from './quality-scorer';
 

@@ -239,6 +239,23 @@ export function shouldDenyUrl(url: string, denyPaths: string[] = DEFAULT_DENY_PA
   }
 }
 
+// Matches paths with a locale prefix like /fr-be/, /de-ch/, /ja/, etc.
+const LOCALE_PATH_REGEX = /^\/[a-z]{2}(-[a-z]{2})?(?:\/|$)/i;
+// Allow US English only
+const US_ENGLISH_LOCALE_REGEX = /^\/en-us(?:\/|$)/i;
+
+/**
+ * Returns true if the path uses a non-English locale prefix.
+ * Paths with no locale prefix (e.g. /blog/) return false (keep them).
+ * /en-us/ returns false (keep). /fr-be/, /de-ch/, /ja/ return true (deny).
+ */
+export function isNonEnglishLocalePath(path: string): boolean {
+  if (LOCALE_PATH_REGEX.test(path)) {
+    return !US_ENGLISH_LOCALE_REGEX.test(path);
+  }
+  return false;
+}
+
 /**
  * Get quality score breakdown for debugging
  * Useful for understanding why an article scored a certain way

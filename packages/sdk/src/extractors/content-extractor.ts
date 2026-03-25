@@ -269,7 +269,7 @@ export class ContentExtractor {
       const structured = this.extractStructuredData(html, url);
       
       // Calculate metrics
-      const wordCount = this.countWords(article.textContent);
+      const wordCount = this.countWords(article.textContent ?? '');
       const readingTime = Math.ceil(wordCount / this.wordsPerMinute);
 
       return {
