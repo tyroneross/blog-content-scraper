@@ -10,6 +10,6 @@
   "repository": "https://github.com/tyroneross/blog-content-scraper",
   "license": "MIT",
   "keywords": ["scraper", "web", "blog", "rss", "content", "llm", "articles"],
-  "commands": "commands/",
-  "skills": "skills/"
+  "commands": "./commands",
+  "skills": "./skills"
 }
