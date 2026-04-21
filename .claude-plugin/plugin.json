@@ -1,5 +1,5 @@
 {
-  "name": "scraper-app",
+  "name": "web-scraper",
   "version": "0.5.0",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {

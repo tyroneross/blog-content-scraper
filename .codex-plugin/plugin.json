@@ -1,5 +1,5 @@
 {
-  "name": "scraper-app",
+  "name": "web-scraper",
   "version": "0.5.0",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {
@@ -20,9 +20,9 @@
   ],
   "skills": "./skills",
   "interface": {
-    "displayName": "Scraper App",
-    "shortDescription": "Intelligent web scraper for extracting blog/news content from any website",
-    "longDescription": "Intelligent web scraper for extracting blog/news content from any website",
+    "displayName": "Web Scraper",
+    "shortDescription": "Extract article content from blog and news sites with LLM-ready output.",
+    "longDescription": "Scrape single URLs or batches of URLs from blogs and news sites. Returns clean article text, token counts, and chunked output sized for downstream LLM ingestion. Auto-discovers RSS feeds and sitemaps when only a domain is given. Uses Mozilla Readability for extraction with Playwright fallback for JS-rendered pages.",
     "developerName": "Ross Labs",
     "category": "Coding",
     "capabilities": [
