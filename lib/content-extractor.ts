@@ -6,6 +6,7 @@
 import { Readability } from '@mozilla/readability';
 import { JSDOM } from 'jsdom';
 import { ExtractedContent } from './types';
+import { extractStructuredData } from './structured-data';
 
 export class ContentExtractor {
   async extractContent(url: string): Promise<ExtractedContent | null> {
@@ -33,19 +34,32 @@ export class ContentExtractor {
       const wordCount = article.textContent?.split(/\s+/).length || 0;
       const readingTime = Math.ceil(wordCount / 200);
 
-      // Extract publish time from metadata
-      const publishedTime = this.extractPublishedTime(dom.window.document);
+      // Pull JSON-LD, OpenGraph, Twitter Card, microdata
+      const structured = extractStructuredData(dom.window.document);
+
+      // Prefer structured publish time, fall back to legacy selector probe
+      const publishedTime =
+        structured.article.publishedTime ||
+        this.extractPublishedTime(dom.window.document);
 
       return {
-        title: article.title ?? undefined,
-        byline: article.byline ?? undefined,
+        title: article.title ?? structured.article.title ?? undefined,
+        byline: article.byline ?? structured.article.author ?? undefined,
         content: article.content ?? undefined,
         textContent: article.textContent ?? undefined,
         length: article.length ?? undefined,
-        excerpt: article.excerpt ?? undefined,
-        siteName: article.siteName ?? undefined,
+        excerpt: article.excerpt ?? structured.article.description ?? undefined,
+        siteName: article.siteName ?? structured.article.siteName ?? undefined,
         publishedTime,
+        lang: structured.article.lang ?? undefined,
         readingTime,
+        structured: {
+          jsonLd: structured.jsonLd.length ? structured.jsonLd : undefined,
+          openGraph:
+            Object.keys(structured.openGraph).length ? structured.openGraph : undefined,
+          twitter:
+            Object.keys(structured.twitter).length ? structured.twitter : undefined,
+        },
       };
     } catch (error) {
       console.error(`[ContentExtractor] Failed to extract from ${url}:`, error);

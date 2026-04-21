@@ -85,6 +85,11 @@ export { globalSitemapParser, type SitemapEntry } from './web-scrapers/sitemap-p
 export { HTMLScraper, type ExtractedArticle, type ScrapingConfig } from './web-scrapers/html-scraper';
 export { ContentExtractor } from './web-scrapers/content-extractor';
 
+// Standalone structured-data extraction (JSON-LD, OpenGraph, Twitter, microdata)
+// for callers who have their own HTML and want metadata without the full
+// scraping pipeline.
+export { extractStructuredData, type StructuredData } from './structured-data';
+
 // Page extractor (single web page support)
 export { extractPage, type PageContent, type PageExtractOptions } from './parsers/page-extractor';
 
