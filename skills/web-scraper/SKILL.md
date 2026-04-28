@@ -1,6 +1,6 @@
 ---
 name: web-scraper
-description: Scrape blog/news content from websites. Use when user asks to extract articles, discover RSS feeds, parse sitemaps, scrape news sites, or get content from blogs. Triggers on keywords like "scrape", "extract articles", "get blog posts", "fetch news", "RSS feed", "sitemap".
+description: Use when user asks to scrape, extract articles, fetch news, get blog posts, discover RSS feeds, or parse sitemaps from websites.
 allowed-tools: Bash(npx tsx:*), Bash(open:*), Read, Write, Glob
 ---
 
