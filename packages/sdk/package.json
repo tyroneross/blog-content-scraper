@@ -46,7 +46,7 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@mozilla/readability": "^0.5.0",
+    "@mozilla/readability": "^0.6.0",
     "cheerio": "^1.1.2",
     "jsdom": "^24.0.0",
     "rss-parser": "^3.13.0",
