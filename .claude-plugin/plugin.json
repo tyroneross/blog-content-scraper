@@ -8,7 +8,7 @@
   },
   "homepage": "https://github.com/tyroneross/blog-content-scraper",
   "repository": "https://github.com/tyroneross/blog-content-scraper",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "keywords": ["scraper", "web", "blog", "rss", "content", "llm", "articles"],
   "commands": "./commands",
   "skills": "./skills"
