@@ -85,7 +85,7 @@
     "express-router",
     "page-extractor"
   ],
-  "author": "Tyrone Ross",
+  "author": "Tyrone Ross, Jr <46267523+tyroneross@users.noreply.github.com>",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -156,6 +156,10 @@
     "express": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "overrides": {
     "qs": ">=6.14.1"

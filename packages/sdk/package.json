@@ -13,11 +13,11 @@
     "readability",
     "mozilla-readability"
   ],
-  "author": "Tyrone Ross",
+  "author": "Tyrone Ross, Jr <46267523+tyroneross@users.noreply.github.com>",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tyroneross/blog-content-scraper.git",
+    "url": "git+https://github.com/tyroneross/blog-content-scraper.git",
     "directory": "packages/sdk"
   },
   "homepage": "https://github.com/tyroneross/blog-content-scraper#readme",
@@ -64,6 +64,7 @@
     "node": ">=18.0.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }
