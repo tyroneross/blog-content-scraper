@@ -5,10 +5,10 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version to publish (leave empty to use package.json version)'
+      dry_run:
+        description: "Run npm publish --dry-run instead of publishing"
         required: false
-        type: string
+        default: "true"
 
 # Required for npm trusted publishers (OIDC)
 permissions:
@@ -45,11 +45,21 @@ jobs:
           echo "Checking index.d.ts exists..."
           test -f dist/lib/index.d.ts && echo "index.d.ts found" || exit 1
 
-      - name: Update version (if specified)
-        if: inputs.version != ''
-        run: npm version ${{ inputs.version }} --no-git-tag-version
+      - name: Verify release tag matches package.json version
+        if: github.event_name == 'release'
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG="${GITHUB_REF_NAME#v}"
+          if [ "$PKG_VERSION" != "$TAG" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match release tag ($TAG)"
+            exit 1
+          fi
 
-      # Uses OIDC trusted publishers - no NPM_TOKEN required
-      # Configured at: https://www.npmjs.com/package/@tyroneross/scraper-app/access
-      - name: Publish to npm with provenance
-        run: npm publish --provenance --access public
+      - name: Publish dry run
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
+        run: npm publish --dry-run --access public
+
+      # Uses OIDC trusted publishing; configure npmjs trusted publisher for this workflow filename.
+      - name: Publish to npm with trusted publishing
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run != 'true')
+        run: npm publish --access public
