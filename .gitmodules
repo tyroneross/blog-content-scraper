@@ -1,0 +1,6 @@
+[submodule "blog-content-scraper"]
+	path = blog-content-scraper
+	url = https://github.com/tyroneross/blog-content-scraper.git
+[submodule "tests/dragnet_data"]
+	path = tests/dragnet_data
+	url = https://github.com/dragnet-org/dragnet_data.git
