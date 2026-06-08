@@ -1,7 +1,7 @@
 {
   "name": "@tyroneross/scraper-app",
   "version": "0.5.1",
-  "description": "Intelligent web scraper SDK for extracting blog/news content. Supports RSS, sitemaps, HTML, and single page extraction.",
+  "description": "Blog and news content extraction SDK for RSS, sitemaps, HTML pages, batch scraping, validation, and LLM-ready article text.",
   "main": "./dist/lib/index.js",
   "types": "./dist/lib/index.d.ts",
   "exports": {
@@ -134,7 +134,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/turndown": "^5.0.5",
-    "@tyroneross/interface-built-right": "file:../interface-built-right",
+    "@tyroneross/interface-built-right": "^1.4.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.0",
     "postcss": "^8.4.0",
