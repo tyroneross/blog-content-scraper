@@ -1,6 +1,6 @@
 {
   "name": "web-scraper",
-  "version": "0.5.0",
+  "version": "0.5.2",
   "description": "Extract blog and news content from any website",
   "author": {
     "name": "Tyrone Ross",
