@@ -24,6 +24,8 @@
  * ```
  */
 
+import { toArticleQualityInput as buildArticleQualityInput } from './article-processing';
+
 // Main orchestrator
 export {
   globalSourceOrchestrator,
@@ -78,6 +80,12 @@ export type {
 // Formatters
 export { convertToMarkdown } from './formatters/html-to-markdown';
 export { cleanText, stripHTML } from './formatters/text-cleaner';
+export {
+  preferExtractedTitle,
+  summarizeContentExtraction,
+  titleFromUrl,
+  toArticleQualityInput,
+} from './article-processing';
 
 // Re-export scraper components for advanced usage
 export { globalRSSDiscovery, type DiscoveredFeed } from './web-scrapers/rss-discovery';
@@ -298,7 +306,12 @@ export async function scrapeWebsite(
       excerpt: extracted.excerpt,
       content: extracted.content,
       textContent: extracted.textContent,
-      publishedTime: extracted.publishedTime?.toISOString()
+      publishedTime: extracted.publishedTime?.toISOString(),
+      byline: extracted.byline,
+      siteName: extracted.siteName,
+      lang: extracted.lang,
+      readingTime: extracted.readingTime,
+      structured: extracted.structured,
     });
 
     const article = {
@@ -361,15 +374,7 @@ export async function scrapeWebsite(
 
   // Calculate quality scores and format output
   const scoredArticles = articles.map(article => {
-    const extracted = {
-      title: article.title,
-      excerpt: article.excerpt,
-      content: article.content,
-      textContent: article.content || '',
-      publishedTime: article.publishedAt.toISOString()
-    };
-
-    const qualityScore = calculateArticleQualityScore(extracted);
+    const qualityScore = calculateArticleQualityScore(buildArticleQualityInput(article));
     const fullContent = extractFullContent ? article.content : undefined;
 
     return {

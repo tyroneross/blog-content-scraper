@@ -9,6 +9,7 @@ import { ContentExtractor, ExtractedContent } from './web-scrapers/content-extra
 import { RobotsChecker } from './web-scrapers/robots-checker';
 import { getPlaywrightScraper, PlaywrightScraperConfig } from './web-scrapers/playwright-scraper';
 import { isNonEnglishLocalePath } from './quality-scorer';
+import { preferExtractedTitle, titleFromUrl } from './article-processing';
 
 // Create instances
 const globalHTMLScraper = new HTMLScraper();
@@ -287,13 +288,16 @@ export class SourceOrchestrator {
     try {
       // Apply circuit breaker protection (use custom if provided, otherwise default)
       const breaker = config.circuitBreaker || circuitBreakers.scraping;
-      return await breaker.execute(async () => {
+      const processed = await breaker.execute(async () => {
         if (config.sourceType === 'auto') {
           return await this.autoDetectAndProcess(url, config, result);
         } else {
           return await this.processKnownType(url, config, result);
         }
       });
+      processed.processingTime = Date.now() - startTime;
+      console.log(`🎭 [Orchestrator] Processing complete: ${processed.articles.length} articles in ${processed.processingTime}ms`);
+      return processed;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error(`❌ [Orchestrator] Failed to process source ${url}:`, errorMessage);
@@ -596,7 +600,8 @@ export class SourceOrchestrator {
             changefreq: entry.changefreq,
             priority: entry.priority,
             hasNews: !!entry.news,
-            sitemapSource: url
+            sitemapSource: url,
+            publishedAtIsFallback: !entry.lastmod,
           }
         });
       } catch (error) {
@@ -635,7 +640,8 @@ export class SourceOrchestrator {
           extractionMethod: 'html-links',
           metadata: {
             extractionSource: article.source,
-            htmlSource: url
+            htmlSource: url,
+            publishedAtIsFallback: !article.publishedDate,
           }
         });
       } catch (error) {
@@ -679,7 +685,8 @@ export class SourceOrchestrator {
           metadata: {
             extractionSource: 'playwright',
             playwrightRendered: true,
-            htmlSource: url
+            htmlSource: url,
+            publishedAtIsFallback: !article.publishedDate,
           }
         });
       } catch (error) {
@@ -811,20 +818,7 @@ export class SourceOrchestrator {
    * Extract title from URL as fallback
    */
   private extractTitleFromUrl(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathParts = urlObj.pathname.split('/').filter(Boolean);
-      const lastPart = pathParts[pathParts.length - 1] || urlObj.hostname;
-
-      return lastPart
-        .replace(/[-_]/g, ' ')
-        .replace(/\.(html|htm|php|asp|jsp)$/i, '')
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    } catch {
-      return 'Untitled Article';
-    }
+    return titleFromUrl(url);
   }
 
   /**
@@ -838,17 +832,6 @@ export class SourceOrchestrator {
    * Finalize processing result
    */
   private finalizeResult(result: OrchestrationResult): OrchestrationResult {
-    const endTime = Date.now();
-    result.processingTime = endTime - (Date.now() - result.processingTime);
-
-    // Update extraction stats
-    result.sourceInfo.extractionStats = {
-      attempted: result.articles.length,
-      successful: result.articles.filter(a => a.confidence >= 0.5).length,
-      failed: result.errors.length,
-      filtered: 0 // This would be calculated during filtering
-    };
-
     // Sort articles by confidence and recency
     result.articles.sort((a, b) => {
       const confidenceDiff = b.confidence - a.confidence;
@@ -859,7 +842,6 @@ export class SourceOrchestrator {
     // Limit results
     result.articles = result.articles.slice(0, this.maxArticlesPerSource);
 
-    console.log(`🎭 [Orchestrator] Processing complete: ${result.articles.length} articles in ${result.processingTime}ms`);
     return result;
   }
 
@@ -894,31 +876,49 @@ export class SourceOrchestrator {
       toEnhance.map(article =>
         limit(async () => {
           try {
+            article.metadata = {
+              ...article.metadata,
+              fullContentExtractionAttempted: true,
+            };
             const extractedContent = await globalContentExtractor.extractContent(article.url);
             if (extractedContent) {
               article.content = extractedContent.content;
-              // Update title if not already set or if extracted title is better
-              if (!article.title || article.title.length < 5) {
-                article.title = extractedContent.title || article.title;
-              }
+              article.title = preferExtractedTitle(article.title, extractedContent.title, article.url);
               article.excerpt = extractedContent.excerpt || article.excerpt;
               article.confidence = Math.min(article.confidence + 0.1, 1.0);
               article.metadata = {
                 ...article.metadata,
                 fullContentExtracted: true,
+                fullContentExtractionFailed: false,
                 extractionMethod: extractedContent.extractionMethod,
                 wordCount: extractedContent.wordCount,
                 readingTime: extractedContent.readingTime,
+                textContent: extractedContent.textContent,
                 byline: extractedContent.byline,
                 siteName: extractedContent.siteName,
-                lang: extractedContent.lang
+                lang: extractedContent.lang,
+                structured: extractedContent.structured,
               };
               // Store publishedTime if extracted and not already set
-              if (extractedContent.publishedTime && (!article.publishedAt || article.publishedAt.getTime() === 0)) {
+              if (extractedContent.publishedTime && (
+                !article.publishedAt ||
+                article.publishedAt.getTime() === 0 ||
+                article.metadata?.publishedAtIsFallback === true
+              )) {
                 article.publishedAt = extractedContent.publishedTime;
+                article.metadata.publishedAtIsFallback = false;
               }
+            } else {
+              article.metadata = {
+                ...article.metadata,
+                fullContentExtractionFailed: true,
+              };
             }
           } catch (error) {
+            article.metadata = {
+              ...article.metadata,
+              fullContentExtractionFailed: true,
+            };
             console.warn(`⚠️ [Orchestrator] Failed to enhance article ${article.url}:`, error);
           } finally {
             completed++;

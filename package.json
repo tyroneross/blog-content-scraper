@@ -103,6 +103,7 @@
     "lint": "next lint",
     "pre-deploy": "./scripts/pre-deploy.sh",
     "typecheck": "tsc --noEmit",
+    "test:unit": "tsx --test tests/scraper-correctness.test.ts",
     "test:f1": "tsx tests/run-f1-tests.ts",
     "test:f1:dragnet": "tsx tests/dragnet-f1-test.ts",
     "prepublishOnly": "npm run build:sdk",

@@ -4,6 +4,7 @@ import { calculateArticleQualityScore, DEFAULT_DENY_PATHS } from '@/lib/quality-
 import { circuitBreakers } from '@/lib/circuit-breaker';
 import { convertToMarkdown } from '@/lib/formatters/html-to-markdown';
 import { cleanText, stripHTML } from '@/lib/formatters/text-cleaner';
+import { summarizeContentExtraction, toArticleQualityInput } from '@/lib/article-processing';
 import { z } from 'zod';
 
 const ScraperTestRequestSchema = z.object({
@@ -156,15 +157,7 @@ export async function POST(request: NextRequest) {
 
       // Calculate quality scores and filter
       const scoredArticles = enhancedArticles.map(article => {
-        const extracted = {
-          title: article.title,
-          excerpt: article.excerpt,
-          content: article.content,
-          textContent: article.content || '',
-          publishedTime: article.publishedAt.toISOString(),
-        };
-
-        const qualityScore = calculateArticleQualityScore(extracted);
+        const qualityScore = calculateArticleQualityScore(toArticleQualityInput(article));
 
         const fullContent = extractFullContent ? article.content : null;
         const fullContentMarkdown = fullContent ? convertToMarkdown(fullContent) : null;
@@ -186,6 +179,7 @@ export async function POST(request: NextRequest) {
       });
 
       const filteredArticles = scoredArticles.filter(a => a.qualityScore >= qualityThreshold);
+      const extraction = summarizeContentExtraction(enhancedArticles);
 
       // Stage 6: Complete (100%)
       await sendEvent({
@@ -199,9 +193,9 @@ export async function POST(request: NextRequest) {
       const stats = {
         totalDiscovered: result.articles.length,
         afterDenyFilter: result.articles.length,
-        attempted: enhancedArticles.length,
-        successful: result.sourceInfo.extractionStats.successful,
-        failed: result.sourceInfo.extractionStats.failed,
+        attempted: extraction.attempted,
+        successful: extraction.successful,
+        failed: extraction.failed,
         filtered: scoredArticles.length - filteredArticles.length,
         afterContentValidation: scoredArticles.length,
         afterQualityFilter: filteredArticles.length,
