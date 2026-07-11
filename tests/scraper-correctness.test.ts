@@ -74,6 +74,20 @@ test('reports only actual full-content extraction attempts', () => {
   assert.deepEqual(stats, { attempted: 2, successful: 1, failed: 1 });
 });
 
+test('does not count a stale success flag when the latest extraction failed', () => {
+  const stats = summarizeContentExtraction([
+    article({
+      metadata: {
+        fullContentExtractionAttempted: true,
+        fullContentExtracted: false,
+        fullContentExtractionFailed: true,
+      },
+    }),
+  ]);
+
+  assert.deepEqual(stats, { attempted: 1, successful: 0, failed: 1 });
+});
+
 test('does not award publication-date credit for a discovery fallback timestamp', () => {
   const source = article({
     metadata: {

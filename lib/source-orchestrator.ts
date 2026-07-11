@@ -69,6 +69,14 @@ export interface OrchestrationResult {
     detectedType: 'rss' | 'sitemap' | 'html';
     discoveredFeeds?: DiscoveredFeed[];
     discoveredSitemaps?: string[];
+    discoveryStats: {
+      attempted: number;
+      successful: number;
+      failed: number;
+      filtered: number;
+    };
+    /** @deprecated Discovery compatibility alias. Use discoveryStats for discovery
+     * and summarizeContentExtraction() after full-content enhancement. */
     extractionStats: {
       attempted: number;
       successful: number;
@@ -274,6 +282,12 @@ export class SourceOrchestrator {
       articles: [],
       sourceInfo: {
         detectedType: 'html',
+        discoveryStats: {
+          attempted: 0,
+          successful: 0,
+          failed: 0,
+          filtered: 0
+        },
         extractionStats: {
           attempted: 0,
           successful: 0,
@@ -832,6 +846,15 @@ export class SourceOrchestrator {
    * Finalize processing result
    */
   private finalizeResult(result: OrchestrationResult): OrchestrationResult {
+    const discoveryStats = {
+      attempted: result.articles.length,
+      successful: result.articles.filter(article => article.confidence >= 0.5).length,
+      failed: result.errors.length,
+      filtered: 0,
+    };
+    result.sourceInfo.discoveryStats = discoveryStats;
+    result.sourceInfo.extractionStats = { ...discoveryStats };
+
     // Sort articles by confidence and recency
     result.articles.sort((a, b) => {
       const confidenceDiff = b.confidence - a.confidence;
@@ -879,6 +902,8 @@ export class SourceOrchestrator {
             article.metadata = {
               ...article.metadata,
               fullContentExtractionAttempted: true,
+              fullContentExtracted: false,
+              fullContentExtractionFailed: false,
             };
             const extractedContent = await globalContentExtractor.extractContent(article.url);
             if (extractedContent) {
