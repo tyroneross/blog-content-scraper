@@ -6,10 +6,15 @@ Status: current external claims verified from official vendor documentation
 
 ## Decision Summary
 
-Build one canonical Rust extraction core in `blog-content-scraper`. Run its
-stateless HTTP/discovery adapter on Vercel and its native Node binding inside a
-Railway browser worker. Keep Atomize responsible for scheduling, queueing, and
-persistence. Keep Docling/Python as a separate Railway document/OCR service.
+Build one canonical first-party Rust ingestion platform in
+`blog-content-scraper`. Run bounded web/text/Office work on Vercel and native
+browser/PDF/OCR escalation on Railway. Keep Atomize responsible for scheduling,
+queueing, candidate selection, persistence, and downstream work. Preserve the
+user-owned `@tyroneross/omniparse` API while replacing its PDF scanner with
+OmniParse Native; do not use Docling or a paid parser in the target architecture.
+Route document work through a dedicated BullMQ queue into the native worker and
+reuse Atomize's existing result queue/writer, so browser and OCR capacity fail
+and scale independently.
 
 Do not make the migration depend on Vercel Services, Vercel Queues, Vercel
 Workflows, or Railway Functions while those products are beta or structurally
@@ -18,7 +23,9 @@ inferior to the existing Redis/BullMQ path.
 ## Current-State Evidence
 
 - [VERIFIED: local code] `atomize-ai` has a canonical extraction chain:
-  JSON-LD -> Readability -> Cheerio -> Railway browser -> Railway Docling -> LLM.
+  JSON-LD -> Readability -> Cheerio -> Railway browser -> Railway document tier
+  -> LLM. The document client boundary is reusable even though its current
+  Docling implementation is not the target.
 - [VERIFIED: local code] Vercel content backfill still performs extraction and
   persistence synchronously for batches of up to 50 with a 270-second budget.
 - [VERIFIED: live Vercel] Production has recorded repeated 60- and 300-second
@@ -44,6 +51,18 @@ inferior to the existing Redis/BullMQ path.
 - [UNVERIFIED: live Railway] Railway CLI 4.9.0 is installed but unauthenticated;
   the current Railway service inventory, utilization, and deploy state could
   not be refreshed.
+- [VERIFIED: local code and tests] User OmniParse has reusable XLSX/PPTX
+  normalization, rich spreadsheet semantics, deterministic chunks, and a
+  compatibility API. `npm test` passed 51/51 assertions and typecheck passed.
+  It has no DOCX/OCR and its PDF path is a raw `BT/ET`/`Tj`/`TJ` stream scan.
+- [VERIFIED: local code and tests] Market-research-platform has in-process
+  PyMuPDF, DOCX, PPTX-image, rich XLSX, image, and Tesseract parsers. The targeted
+  parser suite passed 19/19 live.
+- [VERIFIED: live local probe] Its PyMuPDF/Tesseract full-page OCR path recovered
+  all three digital/OCR sentinel strings from the mixed-PDF fixture in 13.3
+  seconds with about 266 MB maximum RSS in a fresh Python process. The ordinary
+  PDF parser correctly marked the fixture `likely_scanned`, but does not call
+  its own OCR function.
 
 ## Vercel Findings
 
@@ -113,21 +132,31 @@ inferior to the existing Redis/BullMQ path.
      cross-cloud result/capability cache and never delegate correctness to L1.
    - Source: https://vercel.com/docs/caching/runtime-cache
 
+8. Function payload limit
+   - [VERIFIED: official docs, updated 2026-07-01] Function request and response
+     payloads are limited to 4.5 MB.
+   - [DECISION] `/v1/parse` prefers approved storage references. Inline raw bytes
+     are capped at 3 MiB to leave base64/JSON/header margin; projected large
+     results become asynchronous jobs and return by reference.
+   - Source: https://vercel.com/docs/functions/limitations#request-body-size
+
 ## Railway Findings
 
 1. Compute shape
    - [VERIFIED: official docs] Railway Services are long-running containers;
      serverless mode sleeps a service after more than ten minutes without
      outbound traffic and adds cold-boot latency.
-   - [DECISION] Keep one warm browser worker when browser p95 matters. Allow
-     Docling to sleep only if measured document volume makes cold model loading
-     acceptable.
+   - [DECISION] Keep both BullMQ consumers warm. Their persistent Redis traffic
+     prevents Railway's no-outbound-traffic sleep condition from being a valid
+     scale-to-zero assumption. Sleeping workers would require a separate
+     always-on queue-to-push gateway and are outside P0.
    - Source: https://docs.railway.com/deployments/serverless
 
 2. Functions
    - [VERIFIED: official docs] Railway Functions are single-file TypeScript/Bun
      services with a 96 KB source limit.
-   - [DECISION] They are unsuitable for Chromium, Rust extraction, or Docling.
+   - [DECISION] They are unsuitable for Chromium, Rust extraction, PDFium, or OCR
+     models.
    - Source: https://docs.railway.com/functions
 
 3. Rust and containers
@@ -189,43 +218,134 @@ inferior to the existing Redis/BullMQ path.
 
 ## Document and OCR Component Review
 
-### Current Atomize Docling service
+### Correction: which OmniParse
 
-- [VERIFIED: source inspection] The service pins `docling[rapidocr]==2.102.1`,
-  preloads a text-layer converter and a RapidOCR/ONNX converter, authenticates
-  production calls, revalidates redirects, and caps downloaded bytes.
-- [DEFECT] `ocr=auto` selects OCR for image inputs only. It does not inspect a
-  PDF text-layer result and retry OCR when a scanned or mixed PDF yields too
-  little text.
-- [DECISION] Keep Docling, add a page/text-density fallback, and preserve
-  per-page OCR/layout evidence in the canonical result.
+The previous packet inspected `adithya-s-k/omniparse`. The user meant the local
+`/Users/tyroneross/dev/git-folder/Omniparse` package published as
+`@tyroneross/omniparse`. The third-party license, GPU, and Python dependency
+findings are a naming-collision artifact and must not drive this architecture.
 
-### IBM models versus OCR
+### User OmniParse
 
-- [VERIFIED: official Docling docs] Docling's IBM model package supplies layout
-  detection and TableFormer table structure. Text recognition is a selectable
-  backend such as RapidOCR, Tesseract, or EasyOCR.
-- [DECISION] Use RapidOCR/ONNX as the lightweight CPU baseline because it is
-  already implemented locally. Promote a different backend only on held-out
-  accuracy, language, latency, and memory evidence.
+- [VERIFIED: Navigator and live source] Private TypeScript npm monorepo with SDK
+  and web workspaces; its router exposes one generic file/directory API.
+- [VERIFIED: live tests] 51/51 assertions and TypeScript typecheck passed.
+- [REUSE] XLSX/XLS/XLSB/ODS/CSV/TSV normalization, rich spreadsheet structures,
+  PPTX slide/notes/chart text, Markdown, chunks, and compatibility API.
+- [COMPATIBILITY SURFACE] Unified `parse`/`parseMultiple`/directory routing,
+  direct file/buffer parsers, Python source parsing, rich extraction, public
+  result types, CJS/ESM plus `./parsers` exports, and the CLI all need explicit
+  owners. Native PDF/OCR work does not justify shrinking the 1.x package.
+- [GAP] No DOCX parser, no OCR/image interpretation, no typed page/block/bounding-
+  box contract, and no PDF/OCR quality corpus.
+- [REJECT] PDF currently scans raw streams for `BT/ET`, `Tj`, and `TJ` with
+  optional zlib inflation. It lacks CMaps, geometry, images, encryption, layout,
+  and OCR. The custom rich-XLSX ZIP reader also needs bounded, standards-aware
+  replacement before hostile uploads.
+
+### Market-research-platform parser
+
+- [VERIFIED: Navigator, live source, live tests] Canonical in-process parsers use
+  PyMuPDF, `python-docx`, `python-pptx`, `openpyxl`, Pillow, and Tesseract. The
+  targeted parser suite passed 19/19.
+- [REUSE AS ORACLE] Per-page PDF dimensions/text/tables, scan-density detection,
+  DOCX sections/tables, PPTX notes/images, and rich XLSX semantics. The rich XLSX
+  implementation is itself a hardened port from user OmniParse.
+- [VERIFIED: live OCR probe] On the existing mixed PDF, the normal path returned
+  four words and set `likely_scanned`; the explicit 300-DPI Tesseract path
+  returned nine words and all `PDFTEXTALPHA593`, `ORIONCHART731`, and `MARGIN427`
+  sentinels. Fresh-process runtime was 13.3 seconds and maximum RSS about 266 MB.
+- [GAP] The PDF router only flags low text; it never calls `ocr_pdf_pages`.
+  `image_to_data()` output is discarded, image tests mock recognition, and the
+  result contract does not preserve block geometry/provenance.
+- [DECISION] Port behavior and fixtures into Rust; do not carry the Python
+  runtime into the production target.
+
+### PDF engine
+
+- [VERIFIED: official source] `pdfium-render` wraps the PDFium engine used by
+  Chromium and supports page rendering plus text/image extraction.
+- [DECISION] Put PDFium behind a first-party `PdfEngine` trait in the Railway
+  worker first. Pin wrapper revision, PDFium binary/checksum, license inventory,
+  and target architecture. Do not assume it fits or outperforms on Vercel until
+  the local corpus and preview packaging gates pass.
+- [DECISION] Keep PyMuPDF as the behavior oracle during migration. A pure-Rust
+  PDF library may be a lightweight classifier/probe, but cannot become the
+  accuracy path based on package claims.
+- Source: https://github.com/ajrcarey/pdfium-render
+
+### OCR engines
+
+- [VERIFIED: official source and local oracle] Tesseract is Apache-2.0, exposes
+  `libtesseract` plus a CLI, and its local binary already passes the mixed-PDF
+  oracle. Use the C API in production and retain the CLI path as a differential
+  test oracle.
+- [VERIFIED: official source] RapidOCR packages Paddle-derived models across
+  ONNX/OpenVINO/C++ and other runtimes under Apache-2.0 project licensing, while
+  noting that model copyright belongs to Baidu. It is a lightweight challenger,
+  not a license-free assumption.
+- [VERIFIED: official source] PaddleOCR supports C++ and ONNX-oriented local
+  deployment, document structure, and broad language coverage under Apache-2.0.
+  Its framework is too broad for the fast image, but selected exported models may
+  compete behind the same native recognizer interface.
+- [DECISION] Compare Tesseract fast/best, RapidOCR ONNX, and PaddleOCR ONNX/C++
+  by corpus segment. Accuracy floors are hard; among passers choose the faster/
+  lighter engine. Do not install Python OCR frameworks in production.
 - Sources:
-  - https://docling-project.github.io/docling/usage/model_catalog/
-  - https://docling-project.github.io/docling/getting_started/installation/
+  - https://github.com/tesseract-ocr/tesseract
+  - https://github.com/RapidAI/RapidOCR
+  - https://github.com/PaddlePaddle/PaddleOCR
+  - https://github.com/PaddlePaddle/PaddleOCR/tree/main/deploy
 
-### OmniParse
+### IBM OCR and layout models
 
-- [VERIFIED: source inspection at `9d1ae83`] The latest repository commit is
-  dated 2024-11-04. The service depends on Torch, Surya OCR, Marker, Whisper,
-  Selenium, Flash Attention, Gradio, and LibreOffice-oriented flows.
-- [VERIFIED: source inspection] Routes read whole uploads without an explicit
-  size ceiling, expose wildcard CORS without service auth, and are registered
-  once at import and again from `main()`.
-- [RISK] Repository `LICENSE` is GPL-3.0 while `pyproject.toml` says Apache;
-  README also identifies Marker/model commercial restrictions and an 8-10 GB
-  GPU expectation.
-- [DECISION] Do not use OmniParse in P0. It can be evaluated only after license
-  review and service hardening, and only if it beats Docling on the same corpus.
-- Source: https://github.com/adithya-s-k/omniparse
+IBM's useful open components are layout/table models rather than a reason to
+retain Docling. They may enter the layout/table DOE only as exported, license-
+reviewed model challengers behind `LayoutEngine`; no IBM/Docling framework is in
+P0 and no model is selected without local table/block evidence.
+
+### Apple Vision and layout algorithms
+
+- [VERIFIED: live historical test] Spectra's Apple Vision adapter found four real
+  text nodes and landed the OCR-derived Retina click with zero-pixel delta.
+- [REUSE] Its `{label,bounds,confidence}` port, coordinate transforms, and
+  geometry clustering. Its simple top-to-bottom sort and keyword-derived UI roles
+  are insufficient for document reading order.
+- [PLACEMENT] Apple Vision is a macOS/local OmniParse adapter and comparator, not
+  a Linux/Vercel/Railway dependency.
+- `screen-extractor` has no OCR; reuse only its Rust parser-state-machine,
+  Unicode-width, typed-snapshot, and differential-oracle testing patterns.
+
+## Historical Build Loop Findings
+
+- 2026-04-26: research already proposed a thin router: URLs to scraper-app,
+  files to user OmniParse, and scanned PDFs to an OCR tier. It correctly found
+  the OmniParse PDF path text-layer-only but contained no completed OCR bakeoff.
+- 2026-06-08: the scraper `0.5.2` release deliberately left a broad
+  "Omniparse-era" branch unmerged because it exceeded release scope; that is why
+  substantial parser work did not become the published scraper package.
+- 2026-06-11: the content-platform experiment, later reflected in
+  market-research-platform, chose in-process deterministic parsers over the
+  OmniParse HTTP `/parse` sidecar and retained the sidecar only for `/scrape`.
+- 2026-06-13: Atomize's 57-source probe found zero sources that were truly
+  JavaScript-only; static fetch plus structured data/Readability/quality selection
+  handled the corpus. PDF recall, not browser rendering, remained the larger
+  content gap.
+- 2026-06-14: extraction consolidation established two non-negotiable controls:
+  one SSRF policy across every redirect/fetch and terminal failure markers that
+  stop infinite retries.
+- 2026-06-15/16: Docling remained researched and deployment-blocked. It never
+  became a proven quality baseline.
+- 2026-07-01: Spectra's production Apple Vision path passed a live macOS OCR and
+  exact-coordinate grounding test.
+- 2026-07-03: research called for data-shape routing, page/section/bounding-box
+  provenance, native-versus-OCR source labels, and machine-readable confidence.
+- 2026-07-05: PyMuPDF plus the local Tesseract binary passed the mixed DOCX/PDF
+  content oracle without `pytesseract`.
+
+The chronology is internally consistent: keep the scraper and parser as separate
+packages behind one ingestion contract, but build/deploy them from one monorepo
+so contracts, native engines, evals, and release provenance cannot drift.
 
 ## Cost Model Assumptions
 
@@ -237,7 +357,8 @@ Planning scenario, not a bill forecast:
 - 2% are PDF/image/document jobs.
 - Fast path: 150 ms active CPU, 2 seconds provisioned memory per page.
 - Browser worker: 2 GB warm RAM and 0.25 average vCPU.
-- Docling: 2-4 GB when warm; workload-dependent CPU.
+- OmniParse Native initial target: <=1 GB warm RSS at concurrency 1; actual
+  PDFium/Tesseract/ONNX memory and CPU are experiment outputs.
 
 At those assumptions, 90,000 Vercel fast-path pages consume about 3.75 active
 CPU-hours, 100 GB-hours of provisioned memory, and 90,000 invocations. That is
@@ -245,10 +366,12 @@ inside current Hobby allowances but leaves only 15 active CPU-minutes of margin;
 shadow traffic, retries, and Atomize's other Functions make Hobby an unsafe
 production budget assumption. At current `iad1`/`pdx1` rates, those raw Pro
 resources are roughly $1.60 before plan credits and transfer. A warm Railway
-browser worker is roughly $25/month before egress; a warm Docling service adds
-roughly $20-$50/month depending on memory and CPU. Sleeping Docling lowers idle
-cost but increases first-document latency and the first request can return 502.
-Actual sizing requires live Railway metrics.
+browser worker is roughly $25/month before egress. At Railway list rates, a warm
+1 GB OmniParse Native worker averaging 0.1 vCPU is roughly $12/month before
+egress. The live Python/Tesseract one-fixture probe peaked near 266 MB, but that
+does not include PDFium, concurrent requests, or optional ONNX models. Budget the
+BullMQ consumer as always warm; serverless sleep is not included. Actual sizing
+requires the document DOE and live Railway metrics.
 
 ## Falsifiers
 
@@ -260,20 +383,27 @@ Revisit the architecture if any of these becomes true:
 4. Vercel Rust beta produces a material error/cold-start regression.
 5. BullMQ queue loss, latency, or operational cost exceeds an equivalent
    Vercel Queue poll-mode trial after Vercel Queues reaches GA.
+6. PDFium, Tesseract, and every native challenger fail a critical document
+   segment that the current local oracles pass.
+7. The native document worker cannot meet the 1-2 GB initial envelope without
+   dropping required accuracy; in that case increase Railway sizing or isolate a
+   measured heavy segment rather than moving OCR to Vercel.
 
 ## Confidence
 
 - Context coverage: high for the scraper, Atomize extraction/cron/worker, IBR
-  browser engine, local Docling service, and inspected open-source candidates.
+  browser engine, user OmniParse, market-research parsers, Spectra Vision,
+  screen-extractor, historical research, and inspected open-source candidates.
 - Verification coverage: high for local source and Vercel; medium for Railway
   because the CLI session is unauthenticated and live topology is unavailable.
-- Evidence quality: high for platform contracts and Docling capabilities from
-  official docs; medium for Rust/OmniParse quality because upstream claims were
-  not accepted without a local corpus run.
+- Evidence quality: high for local parser contracts/tests and current official
+  component/platform capabilities; medium for comparative PDF/OCR quality because
+  only one real mixed-PDF oracle and one live macOS screen test exist today.
 - Overall: medium until Milestone 0 restores Railway read access and produces a
   valid current baseline.
 
 ## Next Action
 
-Execute Milestone 0 only: reconcile Atomize, verify Railway/Docling live state,
-repair measurement gates, and lock the corpus before writing production Rust.
+Execute Milestone 0 only: reconcile Atomize, verify Railway state, repair web
+measurement gates, import the user OmniParse and market-research fixtures, and
+lock the document/OCR corpus before writing production Rust engine code.

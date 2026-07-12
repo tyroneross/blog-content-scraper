@@ -47,7 +47,7 @@ versioned Rust core and environment-specific adapters:
 - Vercel runs the stateless fast path: fetch, feed/sitemap discovery, HTML
   extraction, metadata, Markdown, quality, and escalation classification.
 - Railway runs stateful/native escalation: Chromium through IBR/CDP and
-  PDF/image extraction through Docling/OCR.
+  PDF/image extraction through the first-party OmniParse Native worker.
 - Atomize remains the product and data owner: source scheduling, BullMQ job
   production, result persistence, downstream enrichment, and user-facing APIs.
 - Redis/BullMQ remains the durable cross-cloud control plane during migration.
@@ -80,7 +80,8 @@ Priority order: accuracy, speed, operational simplicity, code size, cost.
 ### Out of scope
 
 - Defeating paywalls, CAPTCHAs, or explicit access controls.
-- Replacing Docling or production OCR models with Rust before accuracy parity.
+- Shipping a Rust/PDF/OCR component before it passes format-specific accuracy,
+  latency, and memory gates against the existing local implementations.
 - Replacing IBR's CDP engine with Rust while Chrome remains the dominant cost.
 - Replacing Redis/BullMQ during the extraction-engine migration.
 - Changing Atomize search, clustering, KG, embeddings, or summarization logic.
@@ -99,14 +100,14 @@ Priority order: accuracy, speed, operational simplicity, code size, cost.
     {"id": "F-01", "needIds": ["U-01", "U-02"], "text": "Pure Rust extraction and discovery workspace"},
     {"id": "F-02", "needIds": ["U-01"], "text": "Bounded Vercel Rust API"},
     {"id": "F-03", "needIds": ["U-03"], "text": "Railway IBR/CDP browser worker using the Rust core"},
-    {"id": "F-04", "needIds": ["U-03"], "text": "Railway Docling/OCR adapter"},
+    {"id": "F-04", "needIds": ["U-03"], "text": "Railway OmniParse Native PDF/OCR worker"},
     {"id": "F-05", "needIds": ["U-01", "U-04"], "text": "Capability-aware routing, caching, deadlines, and queue backpressure"},
     {"id": "F-06", "needIds": ["U-02"], "text": "Versioned request/result contract and Atomize adapter"}
   ],
   "dataPoints": [
     {"id": "D-01", "featureIds": ["F-01", "F-06"], "text": "ExtractedContentV1 schema"},
     {"id": "D-02", "featureIds": ["F-05"], "text": "SourceCapabilityV1 strategy and failure profile"},
-    {"id": "D-03", "featureIds": ["F-03", "F-04"], "text": "ExtractionJobV1 and ExtractionResultV1 queue messages"},
+    {"id": "D-03", "featureIds": ["F-03", "F-04"], "text": "ExtractionJobV1, DocumentJobV1, and ExtractionResultV1 queue messages"},
     {"id": "D-04", "featureIds": ["F-05"], "text": "Per-stage timing, bytes, quality, and escalation reason telemetry"}
   ],
   "tests": [
@@ -125,7 +126,7 @@ Priority order: accuracy, speed, operational simplicity, code size, cost.
     {"id": "ADR-02", "text": "Separate Vercel Rust project before Vercel Services adoption"},
     {"id": "ADR-03", "text": "BullMQ remains the control plane"},
     {"id": "ADR-04", "text": "IBR/CDP stays Node and Railway-only"},
-    {"id": "ADR-05", "text": "Docling stays Python and Railway-only"},
+    {"id": "ADR-05", "text": "OmniParse Native owns deterministic document parsing and Railway OCR"},
     {"id": "ADR-06", "text": "First-party N-API binding instead of third-party prebuild wrapper"},
     {"id": "ADR-07", "text": "No removal of Readability until shadow non-inferiority passes"}
   ]
@@ -139,13 +140,16 @@ Priority order: accuracy, speed, operational simplicity, code size, cost.
 | Published scraper | TypeScript/Next package with Readability, Cheerio, JSDOM, RSS parser, Turndown, and Playwright | [VERIFIED] `blog-content-scraper/package.json` | Large Vercel graph and duplicated production logic |
 | Public demo API | `/api/scraper-test` always calls source orchestration, even for an article URL; direct `extractArticle`/`smartScrape` returns the requested 881-word control correctly | [VERIFIED live/local] The route returned an unrelated changelog URL; `attempted: 1`, `successful: 1331` | Primary defect is route/mode wiring and stats semantics, not inability to extract the control article |
 | Internal duplication | Root `lib/` and `packages/sdk/src/` carry diverging orchestrator implementations | [VERIFIED] source comparison | Fixes and telemetry semantics drift between public surfaces |
-| Atomize extraction | Separate canonical TS ladder: JSON-LD, Readability, Cheerio, browser, Docling, LLM | [VERIFIED] `atomize-ai/lib/ingestion/extraction/extract.ts` | Atomize is ahead of its nominal scraper package |
+| Atomize extraction | Separate canonical TS ladder: JSON-LD, Readability, Cheerio, browser, Docparse, LLM | [VERIFIED] `atomize-ai/lib/ingestion/extraction/extract.ts` | Preserve the ladder and replace only the document engine behind its adapter |
 | Vercel backfill | Up to 50 extracts inside one 270-second cron budget | [VERIFIED] `app/api/cron/content-backfill/route.ts` | Recent production 300-second timeouts |
 | RSS cron | Bounded to nine sources but still performs network orchestration in the request | [VERIFIED] `app/api/cron/refresh-rss/route.ts` | Timeout and source-failure coupling remains |
 | Queue | BullMQ `content-extraction` already connects Vercel ingestion to Railway | [VERIFIED] queue and worker source | Reusable durable boundary exists |
 | Browser | Playwright-core + Chromium, gated to Railway, waits for DOM stability | [VERIFIED] `tiers/browser.ts` | Correct placement, replaceable controller |
 | Railway image | Shared Node image installs Chromium and dispatches by service name | [VERIFIED] `Dockerfile`, `nixpacks.toml`, dispatcher | Every role can inherit browser build weight |
-| Documents | Python Docling service and Node client exist; README says deploy held | [VERIFIED local, UNVERIFIED live] | OCR capability may not be active in production |
+| Atomize document tier | Python Docling service and Node client exist, but deployment was historically held; `ocr=auto` OCRs images only, not scanned PDFs | [VERIFIED local, UNVERIFIED live] | Current source is an integration shell, not a proven production-quality parser |
+| User OmniParse | TypeScript SDK with passing XLSX/PPTX tests, rich spreadsheet extraction, deterministic chunks, and a generic router | [VERIFIED local] 51 assertions and typecheck pass | Correct package/API scaffold; PDF scanner, DOCX, OCR, and typed page/block evidence are missing |
+| Market-research parser | In-process PyMuPDF, DOCX, PPTX-image, XLSX, image, and Tesseract parsers | [VERIFIED local] targeted parser suite 19/19; real mixed-PDF OCR probe recovered all three sentinel strings | Strong behavior oracle and source of algorithms; target should not inherit the Python runtime |
+| Native OCR evidence | PyMuPDF plus local Tesseract recovered digital and OCR text from the mixed fixture; Spectra Apple Vision grounded live screen text exactly on macOS | [VERIFIED local/historical] | Tesseract is the P0 Linux baseline; Apple Vision remains a macOS adapter and comparator |
 | Source learning | Outcomes are written but not read by the extraction router | [VERIFIED] source grep | Repeated known failures still pay probe cost |
 | Production state | Vercel is READY on `origin/main`; local Atomize is 23 commits ahead | [VERIFIED live/local] | Migration must begin after branch reconciliation |
 | Timing evidence | Root orchestrator now records elapsed time, but the duplicated SDK orchestrator still uses a collapsing elapsed-time formula | [VERIFIED] `lib/source-orchestrator.ts`, `packages/sdk/src/orchestrator/source-orchestrator.ts` | Existing cross-surface latency claims are not a trustworthy baseline |
@@ -160,13 +164,16 @@ flowchart LR
   User[Atomize UI and API] --> Web[Atomize Next.js on Vercel]
   Cron[Vercel cron triggers] --> Web
   Web -->|single URL, bounded| Fast[Scraper Fast API - Rust/Vercel]
-  Web -->|ExtractionJobV1| Queue[(Redis/BullMQ)]
+  Web -->|ExtractionJobV1| Queue[(content-extraction)]
+  Web -->|DocumentJobV1| DocQ[(document-extraction)]
   Fast --> Core[Canonical scraper-core Rust]
   Queue --> Heavy[Scraper Heavy Worker - Railway]
   Heavy --> CDP[IBR CDP + warm Chromium]
   Heavy --> Native[First-party N-API scraper-core]
-  Heavy --> Doc[Docling/OCR - Railway]
-  Heavy -->|ExtractionResultV1| ResultQ[(Result queue)]
+  Heavy -->|binary reclassification| DocQ
+  DocQ --> Doc[OmniParse Native - PDFium + OCR]
+  Heavy -->|ExtractionResultV1| ResultQ[(content-extraction-results)]
+  Doc -->|ExtractionResultV1| ResultQ
   ResultQ --> Writer[Atomize ingestion writer]
   Writer --> DB[(Supabase/Postgres)]
   Writer --> Downstream[Embedding, KG, clustering, summaries]
@@ -175,13 +182,17 @@ flowchart LR
 ### Runtime rule
 
 1. Known static source or interactive single URL: call Rust fast path.
-2. Scheduled/bulk work: enqueue immediately; never loop through article
-   extraction inside a Vercel cron.
+2. Scheduled/bulk work: never loop through article-body extraction inside a
+   Vercel cron. Backfill claims enqueue immediately. RSS cron may perform one
+   explicitly bounded feed/sitemap discovery pass and candidate insertion before
+   enqueueing bodies; its source, candidate, byte, and deadline caps are fixed.
 3. Worker tries native Rust HTTP extraction first unless source capability says
    browser/document/wall.
 4. Low confidence or JavaScript shell: render with IBR/CDP, then run the same
    Rust `extract_html` core.
-5. PDF/image: call Docling, normalize into the same result contract.
+5. PDF/image: enqueue the dedicated document queue; OmniParse Native parses
+   native structure first, OCRs only deficient pages, and normalizes blocks into
+   the same result contract.
 6. Persist once through Atomize's writer, then fan out downstream work.
 
 ## Service Placement
@@ -242,12 +253,20 @@ Endpoints:
 
 - `POST /v1/extract`: one URL or supplied HTML, strict deadline and byte cap.
 - `POST /v1/discover`: one source, bounded candidate count.
+- `POST /v1/parse`: one bounded text/CSV/JSON/OOXML inline input or approved
+  storage reference; deterministic parsers only.
 - `GET /v1/health`: build, contract, and engine versions only.
 
 No synchronous batch endpoint in P0. Batch belongs on the queue.
 `/v1/extract` never falls through to discovery. It returns the requested URL,
 its validated redirect/canonical equivalent, or a typed failure. `/v1/discover`
 is the only endpoint allowed to return different article URLs.
+
+`/v1/parse` never loads PDFium, Tesseract, Chromium, or ONNX. A PDF, image,
+oversized archive, unsupported format, or deadline-risk input returns a typed
+`document_worker_required` escalation. Small OOXML is eligible for Vercel only
+after archive-bomb, output-parity, memory, cold-start, and platform-body-limit
+tests pass; until then all Office files may conservatively use the same queue.
 
 Reasons:
 
@@ -279,7 +298,7 @@ Owns:
 - Direct HTTP extraction through the native binding.
 - Browser escalation with a warm browser/context pool.
 - All-request CDP network policy, including subresources and redirects.
-- Docparse delegation.
+- Binary/document reclassification into the dedicated document queue.
 - `ExtractionResultV1` publication.
 
 Default worker sizing:
@@ -289,50 +308,94 @@ Default worker sizing:
 - Per-host concurrency: 1 by default, adaptive only from explicit source policy.
 - Browser recycle: bounded by page count and resident memory.
 
-Run warm when speed matters. Railway serverless sleep is an optional low-volume
-cost mode, not the production default for latency-sensitive browser recovery.
+Run the BullMQ browser consumer warm. Its persistent Redis connection is not
+compatible with Railway's no-outbound-traffic sleep condition. A future sleeping
+HTTP worker would require a separate always-on queue-to-push gateway and is not
+part of P0.
 
-### Railway: `docparse`
+### Railway: `omniparse-native`
 
-Move the generic service from Atomize into this repository under
-`apps/docparse-service/` after its current branch/deploy state is reconciled.
+Build the first-party document service in this repository under
+`apps/omniparse-native-worker/`. The service is a Rust BullMQ consumer with an
+optional authenticated private HTTP parity adapter for diagnostics and bounded
+interactive calls. Its production image contains a reviewed
+PDFium build, Tesseract/Leptonica, selected language data, and only the ONNX
+models that have won a held-out segment. It does not contain Python, Docling,
+Torch, Chromium, or an LLM.
 
-Keep Python/Docling because OCR/layout accuracy outranks language uniformity.
-Expose only private Railway networking or authenticated service access. Preload
-models when warm. Use serverless sleep only if the measured document arrival
-rate justifies cold model starts.
+Expose it only over Railway private networking or authenticated service access.
+Keep one warm replica because the BullMQ consumer maintains outbound Redis
+traffic and therefore cannot rely on Railway serverless sleep. Scale to zero is
+not a P0 cost assumption.
+Use a dedicated `document-extraction` queue and the shared versioned result
+queue. The browser worker may reclassify a binary response into the document
+queue, but it never waits synchronously for OCR.
 
 ### Document/OCR component decision
 
-Use Docling as the document-structure pipeline and keep OCR behind its engine
-interface. "IBM OCR" is not one monolithic recognition engine here:
-`docling-ibm-models` supplies layout detection and TableFormer structure, while
-Docling delegates text recognition to RapidOCR, Tesseract, EasyOCR, or another
-configured backend.
+`OmniParse Native` is the document-engine product and compatibility API. This
+means the user-owned `/Users/tyroneross/dev/git-folder/Omniparse` package, not
+the unrelated public Python project with the same name. The earlier research
+packet inspected the wrong project; its license and dependency conclusions are
+not evidence about `@tyroneross/omniparse`.
 
 P0 Railway CPU pipeline:
 
-1. Validate magic bytes, type, bytes, pages, dimensions, and URL policy.
-2. Parse native text first; do not OCR a good digital text layer.
-3. If an image or PDF page has insufficient text density, run RapidOCR through
-   ONNX Runtime. The current service already packages this lightweight backend.
-4. Preserve Docling reading order, layout, table, page, and bounding-box evidence
-   when normalizing to `ExtractedContentV1`.
-5. Run Tesseract and EasyOCR as corpus competitors for language/scan segments;
-   route only a measured winner, never a name-based default.
+1. Validate magic bytes, MIME, archive expansion, bytes, pages, dimensions, and
+   URL policy before parsing.
+2. Parse native structure first. PDFium supplies PDF text, glyph geometry,
+   images, and page rendering; robust ZIP/XML adapters handle OOXML. Never OCR a
+   page whose native text coverage and quality already pass.
+3. Classify every page independently as native-text, OCR-required, or mixed.
+   Render and OCR only deficient regions/pages, so one scanned page does not make
+   a 200-page digital PDF pay full OCR cost.
+4. Use the Tesseract C API as the initial Linux recognizer because the existing
+   PyMuPDF/Tesseract oracle recovered the complete mixed-PDF fixture. Keep the
+   CLI implementation as a test oracle, not the concurrent production adapter.
+5. Compare RapidOCR and current PaddleOCR ONNX/C++ deployments as recognizer and
+   detector challengers. Promote by corpus segment only when character/word
+   error, layout, latency, and peak-memory gates all pass. Do not install their
+   Python frameworks in the production image.
+6. Normalize native and OCR evidence into ordered page blocks with source,
+   confidence, bounding box, table/image references, and engine/model version.
+   Deterministic geometry resolves columns and reading order; no LLM generates
+   parser truth.
 
-Required correction: current Atomize `ocr=auto` chooses OCR for images only; a
-scanned PDF can complete the text-layer path with little or no text and never
-retry OCR. Milestone 6 adds page/text-density fallback and mixed-PDF fixtures.
+The current Atomize defect becomes an explicit test: `ocr=auto` must retry low-
+text pages in a PDF. URL extension is only a hint; response MIME and magic bytes
+must route extensionless documents correctly.
 
-Do not adopt OmniParse as a service dependency in P0. Current source inspection
-found a 2024-era broad Torch/Surya/Marker/Whisper/Selenium stack, an 8-10 GB GPU
-expectation, GPL-3.0 repository licensing with conflicting `pyproject` metadata,
-Marker model restrictions, duplicate router registration, wildcard CORS, no
-service auth, and unbounded upload reads. It is neither lightweight nor a safer
-operational base. It may enter the same held-out document evaluation only after
-license review and resource/security hardening; upstream quality claims do not
-count as evidence.
+### Existing-code reuse decision
+
+| Source | Reuse | Do not carry forward |
+|---|---|---|
+| User OmniParse | SDK/router API, XLSX/PPTX normalization, rich spreadsheet semantics, Markdown/chunk behavior, 51-test compatibility suite | Raw PDF `BT/ET` scanner, untyped `metadata`, custom ZIP reader without complete bounds/CRC/descriptor handling |
+| Market-research platform | PDF/page/table behavior, DOCX sections/tables, PPTX image/notes extraction, rich XLSX port, scan-density heuristic, Tesseract fixture path | Python runtime, dormant optional Docling fallback, mocked image-quality test, PDF parser that flags but never invokes OCR |
+| Atomize | `ExtractedContent` contract, candidate scoring, fail-open ladder, SSRF policy, BullMQ, telemetry, idempotent writer | Document engine implementation and extension-only dispatch |
+| Spectra | OCR `{label,bounds,confidence}` port, coordinate normalization, geometry clustering, live Apple Vision oracle | macOS-only capture as a Linux dependency, keyword-derived UI roles as document semantics |
+| screen-extractor | Rust state-machine discipline, Unicode width handling, typed snapshots, differential-oracle test pattern | Terminal cell grid as PDF/document layout |
+| Slide PDF Parser | Page-rendered image retention and slide-level asset provenance | Duplicate text-only PyMuPDF/PPTX parsers and optional LLM analysis |
+
+### OmniParse compatibility surface
+
+`packages/omniparse-compat` is not complete until every published export has an
+owner and parity gate:
+
+| Surface | Migration rule |
+|---|---|
+| `parse`, `detectInputType`, `ParseResult`, `OmniparseOptions` | Preserve signatures and normalized output in 1.x; add `document` only as an optional field |
+| `parseMultiple`, directory recursion, concurrency, progress callback | Keep in the Node compatibility package as orchestration over the native binding; do not turn local paths into a cloud API |
+| `parseExcelFile/Buffer`, `parseCSV`, Excel result/types/chunks | Golden parity against current SDK before selecting Rust; preserve direct imports from `./parsers` |
+| `parsePptxFile/Buffer`, PPTX result/types | Golden parity for slides, notes, charts/diagrams, tables, and output order |
+| `parsePythonFile/Source`, Python result/types | Retain the current TypeScript implementation initially; it is a source parser, not a document/OCR migration blocker |
+| `extractRichContent` and rich Excel types | Preserve charts, comments, merges, links, names, images, and anchors through `formatData` |
+| `omniparse` CLI, CJS/ESM/types exports | Package canary must run CLI and both module systems on Node 18/20/22/24 before publish |
+
+Milestone 0 inventories all local/npm consumers and records export, import path,
+option, and output-field usage. A 1.x canary runs current and compatibility
+packages side by side. Any intentional break requires `@tyroneross/omniparse`
+2.0, a migration note, and a retained 1.x rollback package; no implicit API
+shrink is allowed because the new engine is native.
 
 ### Atomize: `ingestion-writer`
 
@@ -350,34 +413,48 @@ idempotent write boundary.
 blog-content-scraper/
   Cargo.toml
   crates/
-    scraper-contract/        # serde/schemars types, versions, enums
+    ingestion-contract/      # shared web/document serde types and JSON Schema
     scraper-core/            # pure HTML -> candidates -> scored result
     scraper-net/             # SSRF-safe fetch, redirects, limits, robots
     scraper-discovery/       # RSS/Atom/JSON Feed/sitemap/HTML links
+    omniparse-core/          # type routing, page/block normalization, quality
+    omniparse-office/        # bounded OOXML/text/tabular parsers
+    omniparse-pdf/           # PDFium adapter, native text, geometry, rendering
+    omniparse-ocr/           # recognizer trait, Tesseract adapter, preprocessing
     scraper-eval/            # corpora, scorers, benchmark runner
   bindings/
-    scraper-node/            # first-party napi-rs adapter
+    ingestion-node/          # first-party napi-rs web/document adapter
   packages/
     contracts-ts/            # generated TS types + Zod runtime schemas
     client-ts/               # server-only Vercel/queue client
+    omniparse-compat/        # @tyroneross/omniparse-compatible TS surface
   apps/
     scraper-fast-vercel/     # Rust Vercel handlers
     scraper-heavy-worker/    # Node + IBR/CDP + native binding
-    docparse-service/        # Python Docling/OCR
+    omniparse-native-worker/ # Rust + PDFium + Tesseract/optional ONNX
     web/                     # existing test/demo UI, optional
   evals/
     bundled/
     dragnet/
     wcxb/
     atomize-regressions/
+    documents/
+      born-digital/
+      scanned/
+      mixed/
+      tables/
+      office/
   docs/
     plans/
     contracts/
     operations/
 ```
 
-Atomize consumes only `contracts-ts`, `client-ts`, and queue messages. It does
-not import parser internals.
+Atomize consumes only `contracts-ts`, `client-ts`, and queue messages. Existing
+consumers of `@tyroneross/omniparse` use `omniparse-compat` while its live
+XLSX/PPTX behavior is ported and verified. The source OmniParse repository stays
+unchanged until compatibility gates permit a deliberate move; Atomize does not
+import parser internals.
 
 ## Rust Dependency Strategy
 
@@ -394,6 +471,14 @@ P0 dependencies:
 - `tracing` and OpenTelemetry-compatible export.
 - `napi-rs` for the Railway/Node binding.
 - `vercel_runtime` only in the Vercel adapter crate.
+- `zip` plus `quick-xml` for bounded OOXML parsing; archive expansion and XML
+  depth/size limits sit in first-party adapters.
+- `pdfium-render` behind a first-party `PdfEngine` trait for text geometry and
+  page rasterization. Pin the wrapper and reviewed PDFium binary/checksum.
+- Tesseract/Leptonica behind a first-party `OcrEngine` FFI adapter. Keep trained
+  data explicit and versioned by language.
+- An ONNX Runtime adapter only in the Railway OCR feature set; no model runtime
+  enters `scraper-fast-vercel`.
 
 Extractor candidate:
 
@@ -426,6 +511,51 @@ mapping without depending on third-party optional-package publication.
 }
 ```
 
+### `DocumentParseRequestV1`
+
+```json
+{
+  "schemaVersion": "1.0",
+  "requestId": "uuid",
+  "source": {
+    "kind": "storage",
+    "provider": "vercel-blob",
+    "key": "project/source/version/file.docx",
+    "version": "opaque-version",
+    "fileName": "file.docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "sizeBytes": 1048576,
+    "sha256": "hex"
+  },
+  "deadlineMs": 8000,
+  "maxInputBytes": 3145728,
+  "maxOutputBytes": 3000000,
+  "requestedOutputs": ["text", "markdown", "metadata", "artifacts"]
+}
+```
+
+`source` is discriminated as `storage` or `inline`. `storage` accepts only an
+approved provider plus opaque key/version; the service resolves credentials from
+its own scoped identity and never accepts client-supplied cloud credentials or a
+signed URL in logs. `inline` uses base64 bytes and is capped at 3 MiB raw so JSON
+and base64 overhead remain below Vercel's current 4.5 MB request/response payload
+limit. MIME, filename, declared size, checksum, and magic bytes must agree.
+
+The service-auth claim must authorize the project/object scope. Inputs or
+projected responses above the declared caps become `DocumentJobV1`; large results
+are persisted by the worker and returned by reference through the job-status
+API. `/v1/parse` never accepts local filesystem paths or directory recursion.
+
+### `DocumentJobV1`
+
+Required fields: `schemaVersion`, deterministic `jobId`, `requestId`, optional
+`parentJobId`, the same discriminated `source`, `ocrPolicy` (`off`, `auto`, or
+`force`), requested outputs, absolute deadline, byte/page/archive/pixel/output
+caps, parser policy version, and attempt metadata. The worker emits
+`ExtractionResultV1` with all three IDs, result checksum/reference, terminal or
+retryable outcome, per-engine versions, and stage timings. Queue messages never
+contain file bytes, cloud credentials, or signed URLs.
+
 ### `ExtractedContentV1`
 
 Required fields:
@@ -441,6 +571,71 @@ Required fields:
 Dates cross the wire as ISO-8601 strings. TypeScript converts them only at the
 application edge. Raw HTML is excluded by default and enabled only for bounded
 debug/admin use.
+
+### `ParsedDocumentV1`
+
+Document parsing produces a richer internal object and then projects its text,
+Markdown, metadata, quality, and provenance into `ExtractedContentV1`:
+
+```json
+{
+  "schemaVersion": "1.0",
+  "documentId": "sha256:...",
+  "format": "pdf",
+  "text": "...",
+  "markdown": "...",
+  "pages": [
+    {
+      "number": 1,
+      "width": 612,
+      "height": 792,
+      "source": "mixed",
+      "blocks": [
+        {
+          "id": "p1-b4",
+          "kind": "paragraph",
+          "text": "...",
+          "bbox": [72, 96, 540, 144],
+          "order": 4,
+          "source": "ocr",
+          "confidence": 0.94,
+          "engine": "tesseract",
+          "modelVersion": "eng-fast@sha256:..."
+        }
+      ]
+    }
+  ],
+  "tables": [],
+  "images": [],
+  "chunks": [],
+  "formatData": {"kind": "pdf"},
+  "metadata": {},
+  "diagnostics": {"ocrPages": [1], "warnings": []}
+}
+```
+
+`source` is closed to `native_text`, `ocr`, or `mixed`. Bounding boxes use PDF
+page coordinates and retain the transform needed to map rendered pixels back to
+the page. Confidence belongs to the producing engine; cross-engine quality is a
+separate calibrated score and must not merge incompatible confidence scales.
+
+`formatData` is a required discriminated union so the normalized block view does
+not discard source semantics:
+
+- `pdf`: page labels, outlines, native objects, encryption status, and render
+  transforms.
+- `spreadsheet`: sheets, cell ranges, charts/series, comments, hyperlinks, named
+  ranges, merged cells, images/anchors, and formula/value provenance.
+- `presentation`: slides, shape order/geometry, speaker notes, charts, tables,
+  diagrams, media, and alt text.
+- `word`: sections, heading hierarchy, paragraphs/runs, tables, lists, headers,
+  footers, footnotes/endnotes, comments, and embedded media.
+- `text` or `source_code`: encoding, language, and typed symbol/section data.
+
+`chunks` reference stable page/block/artifact IDs; compatibility adapters may
+render legacy chunks without re-parsing. New format-specific fields are additive
+within v1. Removing or changing an existing OmniParse field requires a major
+package/contract version.
 
 ### Escalation classes
 
@@ -460,6 +655,22 @@ debug/admin use.
 must not label them browser-recoverable without a successful observed result.
 
 ## Routing and Caching
+
+### Queue topology
+
+| Queue | Producers | Consumer | Retry and result rule |
+|---|---|---|---|
+| `content-extraction` | Atomize backfill/RSS insertion; interactive async requests | `scraper-heavy` | Maximum three attempts for typed transient transport/5xx/429 failures with jittered exponential backoff; terminal failures stay in BullMQ failed-job storage and emit an audit result |
+| `document-extraction` | Atomize for known file kinds; `scraper-fast-rs` or `scraper-heavy` after MIME/magic-byte reclassification | `omniparse-native` | Same bounded retry policy; parse-empty/unsupported/password-required are terminal, not blind retries |
+| `content-extraction-results` | `scraper-heavy` and `omniparse-native` | Atomize single writer | Writer deduplicates by result/job ID and records written, no-op, stale, or failed |
+
+`requestId` spans the user/product request. `jobId` is deterministic from source
+identity, validator/content checksum, engine version, and requested outputs.
+Reclassification creates `DocumentJobV1` with `parentJobId` and the same
+`requestId`; duplicate reclassification produces one effective document job.
+The native worker consumes `document-extraction` directly and never competes for
+browser queue capacity. BullMQ failed-job retention is the initial DLQ; removal
+requires a separately accepted retention/replay policy.
 
 ### Capability-aware router
 
@@ -495,7 +706,8 @@ freshness requirement.
   decompressed size and DOM node count.
 - Discovery default: 8 seconds, 100 candidates, 5 sitemap documents.
 - Browser default: 25 seconds end to end with DOM-stability wait.
-- Docparse default: 120 seconds with a configurable document/page/byte cap.
+- OmniParse Native default: queue-backed 120-second job deadline with explicit
+  document, page, archive-expansion, OCR-pixel, and output caps.
 - Retries only for idempotent transport failures, 429 with Retry-After, and
   selected 5xx responses. Never retry ordinary 4xx, paywalls, or parse-empty
   outcomes blindly.
@@ -538,7 +750,8 @@ writer. Required events:
 - `scrape.extract.selected`: engine version, tier, quality, content hash.
 - `scrape.escalated`: reason, source capability, target service.
 - `scrape.browser.completed`: navigation, stability, blocked request counts.
-- `scrape.docparse.completed`: format, pages, OCR used, latency.
+- `scrape.document.completed`: format, pages, native/OCR/mixed counts,
+  recognizer/model versions, quality, latency, and peak memory.
 - `scrape.persist.completed`: article ID, idempotent/no-op/written, latency.
 - `scrape.job.failed`: stage, attempt, retry class, terminal flag.
 
@@ -553,6 +766,59 @@ Dashboards:
 - Queue age, active jobs, retries, failed jobs, and worker memory.
 - Cost proxy: active CPU, provisioned memory, Chrome minutes, OCR pages.
 
+## Native Document DOE
+
+No existing repo establishes broad OmniParse or OCR quality. Current evidence is
+narrow but real: OmniParse's 51 assertions cover primarily XLSX/PPTX behavior;
+the market-research parser suite passes 19 targeted tests; the mixed-PDF probe
+recovers all three native/OCR sentinels; Spectra proves live macOS OCR grounding.
+Milestone 6 must turn those seeds into one reproducible corpus before cutover.
+
+| Hypothesis | Experiment | Promote only when |
+|---|---|---|
+| H-DOC-01: PDFium is a stronger native PDF base than the current raw scanner without exceeding the worker envelope | Run PDFium, PyMuPDF oracle, current OmniParse, and a pure-Rust probe over born-digital, encrypted, malformed, multi-column, table, and mixed PDFs | PDFium is non-inferior on text/block completeness and reading order, passes hostile fixtures, and meets latency/RSS ceilings |
+| H-OCR-01: Per-page/region OCR preserves accuracy while reducing work | Compare full-document OCR with native-first page classification on mixed PDFs | Same CER/WER and block recall within tolerance, at least 50% fewer OCR pixels on mixed holdouts, no missed scanned page |
+| H-OCR-02: Tesseract is the best initial default but not necessarily every-segment winner | Compare Tesseract fast/best, RapidOCR ONNX, PaddleOCR ONNX/C++, and Apple Vision where available | Winner satisfies each declared language/scan/table segment; aggregate gains cannot hide a critical-segment regression |
+| H-OFFICE-01: Rust OOXML can replace current TS/Python dependencies without semantic loss | Replay OmniParse and market-research XLSX/PPTX/DOCX fixtures through TS, Python, and Rust | Golden text/table/image/note/chart/comment outputs match after documented normalization and malformed/archive limits pass |
+| H-LAYOUT-01: Deterministic geometry is sufficient for parser truth | Compare column/line/block clustering with labeled page order and table boundaries | Reading-order and block/table metrics pass without an LLM; uncertain blocks remain marked, not invented |
+| H-PLACE-01: OCR stays off Vercel without harming end-to-end latency | Replay the production mix through Vercel fast classification plus Railway queue/worker | Static requests retain fast p95; document queue age and completion SLO pass at measured cost |
+
+Corpus strata are evaluated separately: born-digital PDF, scanned clean, scanned
+noisy/skewed/rotated, mixed PDF, multi-column, tables/forms, multilingual,
+screenshots, DOCX, PPTX, and XLSX. Record CER, WER, token completeness, block F1,
+reading-order score, table cell F1, metadata match, p50/p95 latency, OCR pixels,
+peak RSS, cold start, and output size. Store engine versions, model checksums, and
+per-page provenance with every run.
+
+The selection rule is Pareto-constrained: accuracy floors are hard gates. Among
+engines that pass, choose the fastest/lightest for that segment. A faster or
+smaller engine never compensates for an accuracy failure.
+
+### Executable initial gates
+
+These are P0 promotion floors, not aspirational dashboard targets. Each PDF/OCR
+stratum needs at least 20 independently sourced documents and 100 labeled pages;
+each supported non-English language needs its own 100-page stratum. DOCX, PPTX,
+and XLSX each need at least 20 files plus every imported compatibility fixture.
+If the minimum set is unavailable, that segment remains unsupported/unpromoted.
+
+| Gate | Required result |
+|---|---|
+| G-OCR-CLEAN | English machine print CER <=1.0% and WER <=3.0%; zero missing sentinel on critical fixtures |
+| G-OCR-HARD | Noisy, skewed, rotated, or declared multilingual segment CER <=4.0% and WER <=10.0%; no more than 0.5 percentage-point CER regression versus the best existing oracle |
+| G-COMPLETE | >=98% reference token completeness per document; no critical document below 95% without adjudicated non-content removal |
+| G-BLOCK | Text/block detection F1 >=0.95; >=99.5% of emitted boxes are finite and inside page bounds |
+| G-ORDER | Normalized Kendall reading-order score >=0.97 born-digital and >=0.93 scanned/multi-column |
+| G-TABLE | Exact normalized table-cell F1 >=0.95 overall and >=0.90 in the complex-table stratum; no row/column count error on critical financial tables |
+| G-OFFICE | 100% of current OmniParse public fixtures retain normalized sheets/slides/sections, notes, tables, charts, comments, links, names, merges, images, and chunks; added DOCX fixtures meet the same field-level rule |
+| G-PERF | On the recorded 2-vCPU x86_64 reference runner: born-digital PDF p95 <=250 ms/page; OCR p95 <=4 s/page warm at 300 DPI; <=1 GB peak RSS at concurrency 1 and <=1.5 GB at concurrency 2 |
+| G-QUEUE | <=10-page document completion p95 <=60 s at steady state; queue age p95 <=30 s; one terminal audit result for every accepted job |
+
+Labels and adjudications are versioned. Holdouts are not used for tuning; a
+candidate release gets one scored holdout run. Ambiguous ground truth requires a
+recorded two-reviewer adjudication. Promotion fails on any critical document or
+segment gate even when aggregate metrics improve.
+
 ## Acceptance Criteria
 
 | ID | Criterion | Pass condition |
@@ -560,10 +826,12 @@ Dashboards:
 | T-01 | Extraction accuracy | Rust is no worse than production Readability by more than 0.5 F1 points on each critical corpus; no critical-source regression is accepted without an explicit adjudication |
 | T-01a | Metadata accuracy | Title/author/date/canonical exact-match or normalized-match is non-inferior on held-out fixtures |
 | T-01b | Completeness | No promoted output loses more than 5% of reference article tokens unless the removed tokens are labeled boilerplate |
-| T-02 | Vercel cron | Cron performs scheduling/enqueue only, returns under 15 seconds p95, and records zero extraction-related runtime timeouts for seven days |
+| T-02 | Vercel cron | Backfill performs claim/enqueue/return only; RSS may perform bounded feed/sitemap discovery but no article-body extraction; both return under 15 seconds p95 and record zero extraction runtime timeouts for seven days |
 | T-03 | Contract parity | Native Rust, N-API, and HTTP adapters pass the same golden contract fixtures byte-for-byte after timestamp normalization |
 | T-04 | Browser recovery | Every browser-promoted source proves a static failure and successful rendered extraction above quality threshold |
-| T-04a | OCR | PDF/image output meets the existing Docling fixture and visual-layout assertions; no OCR engine substitution without quality evidence |
+| T-04a | OCR text | Mixed-PDF oracle and G-OCR-CLEAN/G-OCR-HARD/G-COMPLETE pass; no aggregate score can hide a critical-segment regression |
+| T-04b | Document structure | G-BLOCK/G-ORDER/G-TABLE/G-OFFICE pass for born-digital, scanned, mixed, table, and Office holdouts |
+| T-04c | Document resource/SLO | G-PERF and G-QUEUE pass with engine/model checksums and reference hardware recorded |
 | T-05 | Fast performance | Parse-only p95 <= 50 ms for HTML <= 2 MB on the reference runner; end-to-end static p95 <= 2 seconds excluding source-controlled slow responses |
 | T-05a | Resource ceiling | Vercel fast path remains within 2 GB; browser worker survives declared concurrency without OOM or queue starvation |
 | T-06 | Security | Hostile SSRF, redirect, DNS-rebinding, decompression, oversized-document, and Chromium-subresource fixtures are rejected before protected access |
@@ -584,7 +852,8 @@ persists versioned results. No parser code lives in Atomize.
 
 ### Current-constraints approach
 
-Keep Atomize's existing queue, worker, writer, browser tier, and Docling client.
+Keep Atomize's existing queue, worker, writer, browser tier, and document-client
+boundary.
 Introduce the Rust core first through shadow adapters, then move generic service
 code after parity. This avoids combining queue, persistence, engine, and
 deployment changes in one release.
@@ -597,7 +866,8 @@ deployment changes in one release.
 4. Flip single-URL fast extraction behind a flag.
 5. Turn Vercel batch crons into queue producers.
 6. Replace Railway Playwright controller with IBR/CDP while retaining output.
-7. Move generic browser/docparse services into the scraper repo.
+7. Move generic browser service code and the OmniParse compatibility surface
+   into the ingestion monorepo.
 8. Delete duplicate Atomize extraction only after rollback window closes.
 
 ### Recommendation
@@ -657,20 +927,26 @@ browser lifecycle code while Chrome remains the dominant resource.
 
 Rollback: worker flag selects the current Playwright browser tier.
 
-### ADR-05: Docling stays Python
+### ADR-05: OmniParse Native owns document parsing
 
-Decision: Preserve the current Docling/OCR service.
+Decision: Replace the dormant Docling target with a first-party Rust document
+engine that preserves the user-owned OmniParse API and ports only verified local
+behavior. PDFium supplies PDF interpretation/rendering; Tesseract is the first
+proven OCR baseline; additional recognizers remain pluggable challengers.
 
-Alternatives: Rust PDF text libraries plus a new OCR engine; Omniparse.
+Alternatives: keep Docling/Python; keep the current OmniParse PDF scanner; use a
+paid parser API; run every document through a vision LLM.
 
-Tradeoff: mixed-language stack and a larger Railway image. Benefit: preserves
-layout/OCR capability and avoids an unmeasured accuracy sacrifice.
+Tradeoff: we own PDF/OCR integration, model packaging, and a larger evaluation
+surface. Benefit: no paid parser dependency, no Python/Torch hot path, one typed
+contract, targeted OCR cost, and direct reuse of working local algorithms.
 
-Rollback: disable document escalation without affecting HTML extraction.
+Rollback: Atomize selects the current `docparse` adapter or disables document
+escalation without affecting HTML extraction.
 
 ### ADR-06: First-party N-API binding
 
-Decision: Build `bindings/scraper-node` with napi-rs.
+Decision: Build `bindings/ingestion-node` with napi-rs.
 
 Alternatives: third-party `napi-rs-trafilatura`; subprocess CLI; WASM.
 
@@ -697,14 +973,16 @@ Rollback: immediate feature-flag selection of Readability.
 | Rust can meet Readability quality | `rs-trafilatura` candidate plus existing algorithms | T-01 fails after bounded tuning | Keep Readability or port validated missing logic |
 | Existing BullMQ is sufficiently durable | Current production producer/consumer code | Lost/stuck jobs or queue SLO miss | Run Vercel Queue poll-mode bakeoff after GA |
 | One warm browser worker is enough initially | Heavy path expected minority | Queue age p95 > 60 seconds or CPU/memory saturation | Add replicas or source-based partitions |
-| Docling remains best known local document parser | Existing implemented service and prior research | Omniparse/other engine wins held-out quality and resource gates | Replace behind `DocumentParser` interface |
+| Tesseract is a valid P0 OCR baseline, not the universal winner | Existing mixed-PDF oracle passed; market-research path passed the same sentinel probe live | A challenger wins a declared segment without violating resource ceilings | Route that segment through the versioned `OcrEngine` policy |
+| PDFium can provide the required native PDF geometry/rendering | Chromium lineage and maintained Rust wrapper; not yet benchmarked in this repo | Corpus, binary packaging, license, or resource gate fails | Keep PyMuPDF as the oracle and evaluate another reviewed native PDF engine |
 | Vercel Rust beta is acceptable behind a fallback | Official beta support plus reversible adapter | Error/cold-start regression above threshold | Keep Rust on Railway and use Node/N-API on Vercel temporarily |
 | Production can be reconciled before migration | Local is 23 commits ahead of deployed origin | Release blocker cannot close safely | Build in isolated branch but do not route production |
 
 ## Tradeoffs Made
 
-1. Mixed languages over purity: Rust for deterministic extraction, Node for IBR,
-   Python for Docling. This preserves accuracy and reuses working engines.
+1. First-party native core over language uniformity theater: Rust owns web and
+   document normalization, Node owns IBR/CDP, and C/C++ engines sit behind narrow
+   FFI traits. Python implementations remain test oracles during migration.
 2. Two compute platforms over one: Vercel for bursty fast work, Railway for warm
    stateful/native work. This minimizes normal latency without forcing Chrome
    into every invocation.
@@ -727,7 +1005,7 @@ Rollback: immediate feature-flag selection of Readability.
 | Source learning | Writes capability only | Reads and routes | Dormant feedback loop | TTL profile router | Routing integration tests |
 | Browser control | Playwright-core | IBR CDP | Heavy dependency and generic image | Dedicated worker/image | T-04, memory load test |
 | Browser network safety | Main navigation checks | Every request checked | Subresource SSRF exposure | CDP request policy | T-06 |
-| Document parsing | Held Docling service | Active private service | Live state unknown | Verify/deploy after contract gate | T-04a |
+| Document parsing | User OmniParse plus market-research Python parsers and dormant Docling adapter | `omniparse-core/office/pdf` plus private native worker | Fragmented contracts; weak PDF; OCR not routed | Port verified behavior, add page/block contract, PDFium, per-page OCR | T-04a, T-04b |
 | Persistence boundary | Worker extracts and writes | Versioned result -> writer | Scraper knows Atomize schema | Result queue adapter | T-07 |
 | Cross-runtime types | Handwritten TS | JSON Schema generated TS/Zod | Drift risk | `schemars` generation check | CI diff gate |
 | Evaluation | TS DOE branch | Cross-engine corpus runner | Rust untested locally | Add Rust/Readability/production comparators | T-01 suite |
@@ -744,7 +1022,7 @@ Rollback: immediate feature-flag selection of Readability.
 | M3 | `dispatch_tier: sonnet` | deployment | Introduce reversible Vercel shadow traffic |
 | M4 | `dispatch_tier: sonnet` | persistence contract | Change cron work into idempotent queue production |
 | M5 | `dispatch_tier: opus` | deployment | Combine Rust parsing with IBR/CDP browser isolation |
-| M6 | `dispatch_tier: opus` | deployment | Activate measured Docling/OCR escalation |
+| M6 | `dispatch_tier: opus` | deployment | Activate measured OmniParse Native document/OCR escalation |
 | M7 | `dispatch_tier: sonnet` | deployment | Cut over only after production non-inferiority gates |
 
 ### Milestone 0: Reconcile and baseline
@@ -756,7 +1034,7 @@ Actions:
 1. Reconcile Atomize local `main` (23 commits ahead) with production and complete
    the existing release gates.
 2. Restore Railway read access and capture service names, deploy revisions,
-   memory/CPU, queue age, and current Docling state.
+   memory/CPU, queue age, and current document-service state.
 3. Contain the current public wrong-document failure before Rust: give the demo
    route an explicit article/listing mode, route article requests through the
    direct extractor, and return a typed failure instead of silently substituting
@@ -775,10 +1053,14 @@ Actions:
    an unrelated feed/sitemap candidate, and statistics must satisfy invariants.
 10. Record seven days of tier, quality, valid latency, timeout, and source-failure
    data.
+11. Inventory every `@tyroneross/omniparse` consumer by package version, import
+   path, exported symbol, option, output field, CLI use, and Node/module format;
+   freeze the export-by-export compatibility matrix and 1.x rollback package.
 
 Exit gate: current TS path is deployable, reproducible, and benchmarked; the
 acceptance command fails on a below-threshold fixture, and elapsed-time tests
-prove both public orchestrators report real duration.
+prove both public orchestrators report real duration. The OmniParse consumer and
+export matrix has no unknown owner.
 
 ### Milestone 1: Contract and Rust walking skeleton
 
@@ -786,7 +1068,7 @@ Goal: prove one URL -> one canonical result locally.
 
 Actions:
 
-1. Add Cargo workspace and `scraper-contract`.
+1. Add Cargo workspace and `ingestion-contract`.
 2. Generate TypeScript/Zod types and fail CI on drift.
 3. Implement `scraper-core::extract_html` behind an `Extractor` trait.
 4. Integrate pinned `rs-trafilatura` candidate plus first-party reconciliation.
@@ -863,16 +1145,29 @@ Goal: activate document extraction without coupling it to HTML traffic.
 
 Actions:
 
-1. Verify the existing Docling service branch, image, tests, and deployment.
-2. Move generic service ownership into this scraper repository.
-3. Put it on private Railway networking with auth and byte/page/time limits.
-4. Run PDF text-layer, scanned PDF, image, table, and malformed-document holdouts.
-5. Fix `auto` mode to retry OCR for scanned or low-text PDF pages and record
-   per-page OCR provenance.
-6. Compare RapidOCR, Tesseract, and EasyOCR through the same eval contract;
-   compare OmniParse only after its license and service-hardening gates pass.
+1. Freeze `ParsedDocumentV1` and the `PdfEngine`/`OcrEngine` traits before engine
+   code moves.
+2. Import the user OmniParse compatibility tests and market-research parser
+   fixtures. Add the existing mixed DOCX/PDF OCR oracle unchanged.
+3. Build `omniparse-core` plus bounded text/OOXML parsers; port XLSX/PPTX/DOCX
+   behavior with golden parity before retiring either source implementation.
+4. Build the Railway PDFium adapter for native text, glyph boxes, images, and
+   page rendering. Reconstruct tables in the first-party layout layer and gate
+   them independently with G-TABLE. Keep PyMuPDF outputs as an evaluator oracle.
+5. Implement page-level text-coverage classification and Tesseract C-API OCR.
+   Re-run OCR only for deficient pages/regions and preserve every block's source.
+6. Compare Tesseract fast/best, RapidOCR ONNX, and PaddleOCR ONNX/C++ across
+   clean, noisy, rotated, multilingual, mixed, multi-column, and table segments.
+7. Put the worker on private Railway networking with auth, checksummed models,
+   and byte/page/archive/pixel/time/output limits.
+8. Add the `document-extraction` queue with deterministic job IDs, bounded
+   concurrency, retry classes, terminal failed-job records, and publication to
+   the existing result queue. Binary reclassification is idempotent.
+9. Shadow the Atomize document adapter, mapping old `docparse` telemetry to the
+   new `document` event until dashboards and rollback no longer require the alias.
 
-Exit gate: T-04a and T-06 pass; cold/warm policy chosen from measured volume.
+Exit gate: T-04a, T-04b, and T-06 pass; cold/warm policy is chosen from measured
+volume; no engine promotion regresses a critical format segment.
 
 ### Milestone 7: Canonical cutover and cleanup
 
@@ -902,7 +1197,7 @@ M0 baseline
           -> M3 Vercel shadow
               -> M4 queue-only crons
       -> M5 Railway browser adapter
-      -> M6 Docling integration
+      -> M6 OmniParse Native integration
 M3 + M4 + M5 + M6
   -> M7 canonical cutover
 ```
@@ -910,10 +1205,11 @@ M3 + M4 + M5 + M6
 Parallelization:
 
 - After M1 contract freeze, M2 network, M3 adapter scaffolding, M5 browser-image
-  work, and M6 Docling verification have disjoint primary write sets.
+  work, and M6 document-engine work have disjoint primary write sets.
 - Production routing stays sequential behind acceptance gates.
-- This turn authorized Build Loop planning, not Codex subagent delegation; the
-  plan was self-performed locally.
+- This revision used independent read-only subagents for disjoint repository
+  audits; the primary agent reconciled their findings against live source and
+  executed the market-research parser/OCR probes directly.
 
 ## Single-Shot Build Guardrails
 
@@ -934,13 +1230,14 @@ Parallelization:
 
 | Work item | Read first | Why | Edit after |
 |---|---|---|---|
-| Contract | Atomize `extracted-content.ts`, writer, queue types, scraper output types | Preserve current consumers and dates/hashes | `crates/scraper-contract`, generated TS package |
+| Contract | Atomize `extracted-content.ts`, writer, queue types, scraper output types, user OmniParse `router.ts` | Preserve current consumers, compatibility API, dates, hashes, and document structure | `crates/ingestion-contract`, generated TS package |
 | Core | DOE report/harness, Atomize tiers/select helpers, `rs-trafilatura` source/tests | Reuse validated rules and establish baseline | `crates/scraper-core`, evals |
 | Network | Both repos' fetchers, robots checker, SSRF guard, rate limiter | Preserve policy and fix cancellation/concurrency | `crates/scraper-net`, discovery |
 | Vercel | Rust Runtime docs, current `vercel.json`, deployed function config | Avoid unsupported duration/service assumptions | `apps/scraper-fast-vercel` |
 | Queue migration | RSS service, content queue, backfill cron, single writer | Preserve claim/idempotency semantics | Atomize producer/writer adapters |
 | Browser | IBR browser/driver/network code, Atomize browser tier, Docker manifests | Preserve DOM stability and close request-policy gaps | heavy worker and Dockerfile |
-| OCR | Docparse client/service/tests and held deployment plan | Avoid replacing an unverified service blindly | docparse app/adapter |
+| Documents | User OmniParse router/Excel/PPTX/tests; market-research PDF/OCR/DOCX/PPTX/XLSX/tests; Atomize docparse adapter | Port proven behavior, reject the raw PDF scanner, and preserve the existing client boundary | `omniparse-*` crates, compatibility package, native worker |
+| OCR/layout | Mixed-PDF oracle, Spectra Vision port/geometry/live test, Tesseract/RapidOCR/PaddleOCR sources | Preserve evidence coordinates and compare recognizers by segment | `omniparse-ocr`, document eval corpus |
 
 ## Depends-on (reads-from)
 
@@ -952,15 +1249,16 @@ Parallelization:
 - Vercel 30-minute support for Rust - explicitly not assumed.
 - Railway service names/resources - unverified live; blocking only for deploy,
   not for local core development, and resolved by Milestone 0.
-- Docling service production state - unverified live; resolved by Milestone 0/6.
+- Atomize's current document-service production state - unverified live; it is a
+  rollback/data point, not the target architecture, and is resolved by M0/M6.
 
 ## Activation Map
 
 - Vercel source cron - trigger: existing Vercel Cron schedules - verified-live: yes.
 - Content extraction producer - trigger: RSS insert and backfill claim call sites - verified-live: pending; verified in Milestone 4 integration.
 - Railway heavy consumer - trigger: BullMQ `content-extraction` queue - verified-live: pending; verified in Milestone 5 staging.
+- OmniParse Native consumer - trigger: BullMQ `document-extraction` queue - verified-live: pending; verified in Milestone 6 staging.
 - Result writer - trigger: BullMQ `content-extraction-results` queue - verified-live: pending; verified in Milestone 5 staging.
-- Docparse adapter - trigger: document/image escalation enum - verified-live: pending; verified in Milestone 6 staging.
 
 ## Environment Contract
 
@@ -972,6 +1270,8 @@ Shared:
 - `SCRAPER_ENGINE_VERSION`
 - `SCRAPER_SERVICE_AUTH_KEY` or platform OIDC configuration
 - `REDIS_URL`
+- `DOCUMENT_EXTRACTION_QUEUE=document-extraction`
+- `EXTRACTION_RESULT_QUEUE=content-extraction-results`
 - `OTEL_EXPORTER_OTLP_ENDPOINT`
 
 Atomize:
@@ -983,10 +1283,20 @@ Atomize:
 Railway heavy worker:
 
 - `IBR_CDP_URL` or local Chrome path configuration
-- `DOCPARSE_SERVICE_URL`
-- `DOCPARSE_API_KEY`
+- `OMNIPARSE_SERVICE_URL`
+- `OMNIPARSE_API_KEY`
 - `CONTENT_EXTRACTION_CONCURRENCY`
 - `BROWSER_CONTEXT_CONCURRENCY`
+
+Railway OmniParse Native worker:
+
+- `OMNIPARSE_JOB_CONCURRENCY`
+- `OMNIPARSE_MAX_BYTES`
+- `OMNIPARSE_MAX_PAGES`
+- `OMNIPARSE_MAX_OCR_PIXELS`
+- `OMNIPARSE_OCR_ENGINE_POLICY`
+- `OMNIPARSE_TESSDATA_DIR`
+- `OMNIPARSE_MODEL_MANIFEST`
 
 All external calls require explicit timeout, maximum response bytes, retry
 classification, and rate-limit handling. No endpoint accepts an unlimited body.
@@ -1011,9 +1321,12 @@ mix:
   raw Pro usage is roughly $1.60 before plan credits and transfer.
 - One warm 2 GB browser worker at 0.25 average vCPU is roughly $25/month before
   egress.
-- Warm Docling is likely another $20-$50/month depending on memory and CPU;
-  sleeping lowers idle cost but raises first-job latency and can return a 502 on
-  the first wake request, so queue retry behavior must absorb it.
+- The live PyMuPDF/Tesseract mixed-PDF probe completed in 13.3 seconds with
+  roughly 266 MB maximum RSS in a fresh Python process and recovered all three
+  sentinels. This is a one-fixture baseline, not a capacity forecast. Target a
+  <=1 GB native worker envelope before concurrency is raised. At current list
+  rates, one warm 1 GB worker averaging 0.1 vCPU is roughly $12/month before
+  egress; actual PDFium/model/concurrency measurements choose the deployed size.
 - Additional browser replicas scale approximately with warm memory plus actual
   CPU. Do not add replicas until queue age or utilization crosses its SLO.
 
@@ -1029,6 +1342,7 @@ Primary official sources:
 - https://vercel.com/docs/functions/runtimes/rust
 - https://vercel.com/docs/functions/runtimes/edge
 - https://vercel.com/docs/functions/usage-and-pricing
+- https://vercel.com/docs/functions/limitations
 - https://vercel.com/docs/queues
 - https://vercel.com/docs/services
 - https://vercel.com/docs/caching/runtime-cache
@@ -1041,6 +1355,10 @@ Open-source source reviews:
 
 - https://github.com/Murrough-Foley/rs-trafilatura
 - https://github.com/gorango/napi-rs-trafilatura
+- https://github.com/ajrcarey/pdfium-render
+- https://github.com/tesseract-ocr/tesseract
+- https://github.com/RapidAI/RapidOCR
+- https://github.com/PaddlePaddle/PaddleOCR
 
 ## Plan Acceptance Readback
 
@@ -1050,16 +1368,19 @@ Open-source source reviews:
 - Independent architect review: incorporated. It identified invalid SDK timing,
   non-enforcing/inconsistent F1 gates, weak candidate/metadata handling, root/SDK
   drift, and stale extraction flags; Milestone 0 and the corpus now cover them.
-- Document parser review: incorporated. It identified the scanned-PDF `auto` OCR
-  gap and rejected OmniParse as the P0 default after source/license/resource
-  inspection.
+- Document parser review: corrected and incorporated. The earlier packet audited
+  the unrelated public Python OmniParse project. Live inspection of the user's
+  `@tyroneross/omniparse` found reusable XLSX/PPTX behavior and passing tests,
+  plus missing DOCX/OCR and a PDF scanner that must be replaced. Market-research
+  and Spectra provide the stronger PDF/OCR behavior and geometry oracles.
 - Scope auditor: pending at the Plan-to-Execute boundary because public contracts
   do not exist yet. Milestone 1 must enumerate all Atomize/package callers before
   freezing `ExtractedContentV1` or queue message signatures.
 
 Gaps readback: no architecture blocker remains. Railway service inventory,
-Docling live deployment, producer/consumer activation, and result-writer
-activation are deliberately unverified and mapped to Milestones 0, 4, 5, and 6.
+PDFium packaging, comparative document/OCR quality, producer/consumer activation,
+and result-writer activation are deliberately unverified and mapped to
+Milestones 0, 4, 5, and 6.
 
 ## Deployment Assumptions
 
@@ -1071,7 +1392,8 @@ Production-only facts to resolve before deployment:
 - [ASSUMED: the Railway `scraper-worker` can be replaced or renamed without an
   external consumer depending on the service name.]
 - [ASSUMED: current Vercel account permits a separate Rust preview project.]
-- [ASSUMED: Docling can be allocated at least 2 GB RAM when activated.]
+- [ASSUMED: Railway can run a private native worker with PDFium, Tesseract, and
+  optional ONNX assets within a measured 1-2 GB initial envelope.]
 
 Each assumption has an explicit Milestone 0 readback and does not change the
 P0 local-core tests.
