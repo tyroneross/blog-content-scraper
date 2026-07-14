@@ -1,6 +1,5 @@
 {
   "name": "web-scraper",
-  "version": "0.5.2",
   "description": "Intelligent web scraper for extracting blog/news content from any website",
   "author": {
     "name": "Tyrone Ross",

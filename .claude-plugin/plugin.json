@@ -1,6 +1,5 @@
 {
   "name": "web-scraper",
-  "version": "0.5.2",
   "description": "Extract blog and news content from any website",
   "author": {
     "name": "Tyrone Ross",
@@ -9,7 +8,15 @@
   "homepage": "https://github.com/tyroneross/blog-content-scraper",
   "repository": "https://github.com/tyroneross/blog-content-scraper",
   "license": "Apache-2.0",
-  "keywords": ["scraper", "web", "blog", "rss", "content", "llm", "articles"],
+  "keywords": [
+    "scraper",
+    "web",
+    "blog",
+    "rss",
+    "content",
+    "llm",
+    "articles"
+  ],
   "commands": "./commands",
   "skills": "./skills"
 }
