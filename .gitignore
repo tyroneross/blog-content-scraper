@@ -38,3 +38,6 @@ next-env.d.ts
 # interface-built-right local config
 .ibr.json
 .ibr/
+
+# build-loop runtime state (local only)
+.build-loop/
