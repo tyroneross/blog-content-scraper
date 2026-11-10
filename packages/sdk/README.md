@@ -2,7 +2,6 @@
 
 > Powerful web scraping SDK for extracting blog articles and content. No LLM required.
 
-[![npm version](https://img.shields.io/npm/v/@tyroneross/blog-scraper.svg)](https://www.npmjs.com/package/@tyroneross/blog-scraper)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features

@@ -106,7 +106,7 @@ export interface PageExtractOptions {
   minContentLength?: number;
 }
 
-const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniParse/1.0; +https://github.com/tyroneross/scraper-app)';
+const DEFAULT_USER_AGENT = 'Mozilla/5.0 (compatible; OmniParse/1.0; +https://github.com/tyroneross/blog-content-scraper)';
 const WORDS_PER_MINUTE = 200;
 
 /**

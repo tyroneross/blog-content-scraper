@@ -257,5 +257,5 @@ MIT
 ## Links
 
 - [npm package](https://www.npmjs.com/package/@tyroneross/scraper-app)
-- [GitHub](https://github.com/tyroneross/Scraper App)
-- [Issues](https://github.com/tyroneross/Scraper App/issues)
+- [GitHub](https://github.com/tyroneross/blog-content-scraper)
+- [Issues](https://github.com/tyroneross/blog-content-scraper/issues)

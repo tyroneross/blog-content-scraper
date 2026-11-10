@@ -226,7 +226,7 @@ needs that placement.
 
 ### Vercel: `atomize-web`
 
-Code remains in `/Users/tyroneross/dev/git-folder/atomize-ai`.
+Code remains in `<repos-root>/atomize-ai`.
 
 Owns:
 
@@ -334,7 +334,7 @@ queue, but it never waits synchronously for OCR.
 ### Document/OCR component decision
 
 `OmniParse Native` is the document-engine product and compatibility API. This
-means the user-owned `/Users/tyroneross/dev/git-folder/Omniparse` package, not
+means the user-owned `<repos-root>/Omniparse` package, not
 the unrelated public Python project with the same name. The earlier research
 packet inspected the wrong project; its license and dependency conclusions are
 not evidence about `@tyroneross/omniparse`.

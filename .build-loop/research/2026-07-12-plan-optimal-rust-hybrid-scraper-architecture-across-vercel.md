@@ -221,7 +221,7 @@ inferior to the existing Redis/BullMQ path.
 ### Correction: which OmniParse
 
 The previous packet inspected `adithya-s-k/omniparse`. The user meant the local
-`/Users/tyroneross/dev/git-folder/Omniparse` package published as
+`Omniparse` package published as
 `@tyroneross/omniparse`. The third-party license, GPU, and Python dependency
 findings are a naming-collision artifact and must not drive this architecture.
 
