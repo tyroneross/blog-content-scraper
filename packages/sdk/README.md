@@ -15,9 +15,14 @@
 
 ## Installation
 
+This package is not published to npm yet. Install it from a clone of the repository:
+
 ```bash
-npm install @tyroneross/blog-scraper
+git clone https://github.com/tyroneross/blog-content-scraper.git
+npm install --install-links ./blog-content-scraper/packages/sdk
 ```
+
+`--install-links` copies the package and installs its dependencies; without it npm only links the folder. The built files in `dist/` are committed, so no build step is needed.
 
 ## Quick Start
 

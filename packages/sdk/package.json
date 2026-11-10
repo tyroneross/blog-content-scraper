@@ -1,5 +1,5 @@
 {
-  "name": "tyroneross-blog-scraper",
+  "name": "@tyroneross/blog-scraper",
   "version": "0.2.0",
   "description": "Powerful web scraping SDK for extracting blog articles and content. No LLM required.",
   "keywords": [
